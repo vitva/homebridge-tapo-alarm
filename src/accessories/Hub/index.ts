@@ -18,6 +18,7 @@ export type AccessoryThisType = ThisType<{
   readonly tpLink: TPLink;
   readonly log: Logger;
   readonly mac: string;
+  lastAlarmState?: boolean;
 }>;
 
 export interface HubContext {
@@ -33,7 +34,7 @@ export default class HubAccessory extends TapoAccessory {
   private readonly targetChar: CharInstance;
   private alarmPollTimer?: NodeJS.Timeout;
   private alarmPollInFlight = false;
-  private lastAlarmState?: boolean;
+  public lastAlarmState?: boolean;
 
   public get UUID() {
     return this.accessory.UUID.toString();
@@ -118,7 +119,13 @@ export default class HubAccessory extends TapoAccessory {
     this.alarmPollInFlight = true;
     try {
       const deviceInfo = await this.tpLink.getInfo();
-      const alarmActive = deviceInfo.in_alarm === true;
+      // An omitted alarm flag is unknown, not a confirmed alarm-clear event.
+      if (typeof deviceInfo.in_alarm !== 'boolean') {
+        this.log.debug('H100 alarm state is unavailable; keeping the last known state.');
+        return;
+      }
+
+      const alarmActive = deviceInfo.in_alarm;
 
       if (this.lastAlarmState !== alarmActive) {
         this.lastAlarmState = alarmActive;
