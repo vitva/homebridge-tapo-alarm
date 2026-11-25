@@ -199,40 +199,40 @@ export default class ButtonAccessory extends TapoAccessory {
       this.eventCursorInitialized = cursor.initialized;
       this.lastEventUpdate = cursor.lastTimestamp;
 
-      switch ((cursor.event ?? '').toLowerCase()) {
-        case 'singleclick':
-          characteristic.sendEventNotification(
-            this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
-          );
-          break;
-        case 'doubleclick':
-          characteristic.sendEventNotification(
-            this.platform.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS
-          );
-          break;
-        case 'rotation':
-        case 'rotate':
-          if (cursor.rotationDirection === 'right' && this.rotationRightChar) {
-            this.rotationRightChar.sendEventNotification(
+      if (cursor.rotationDirection === 'right' && this.rotationRightChar) {
+        this.rotationRightChar.sendEventNotification(
+          this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+        );
+        this.log.debug(
+          'S200D rotated clockwise:',
+          cursor.rotationDegrees ?? 'degrees unavailable'
+        );
+      } else if (
+        cursor.rotationDirection === 'left' &&
+        this.rotationLeftChar
+      ) {
+        this.rotationLeftChar.sendEventNotification(
+          this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+        );
+        this.log.debug(
+          'S200D rotated counter-clockwise:',
+          cursor.rotationDegrees ?? 'degrees unavailable'
+        );
+      } else {
+        switch ((cursor.event ?? '').toLowerCase()) {
+          case 'singleclick':
+          case 'single_click':
+            characteristic.sendEventNotification(
               this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
             );
-            this.log.debug(
-              'S200D rotated clockwise:',
-              cursor.rotationDegrees ?? 'degrees unavailable'
+            break;
+          case 'doubleclick':
+          case 'double_click':
+            characteristic.sendEventNotification(
+              this.platform.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS
             );
-          } else if (
-            cursor.rotationDirection === 'left' &&
-            this.rotationLeftChar
-          ) {
-            this.rotationLeftChar.sendEventNotification(
-              this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
-            );
-            this.log.debug(
-              'S200D rotated counter-clockwise:',
-              cursor.rotationDegrees ?? 'degrees unavailable'
-            );
-          }
-          break;
+            break;
+        }
       }
     } catch (error) {
       this.log.warn('Failed to check S200 button events:', error);
