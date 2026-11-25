@@ -64,6 +64,7 @@ export default class Platform implements DynamicPlatformPlugin {
       this.log.debug('Executed didFinishLaunching callback');
       this.log.debug('Finished initializing platform:', this.config.name);
 
+      this.removeCachedHiddenAccessories();
       void this.discoverDevices();
     });
 
@@ -100,6 +101,15 @@ export default class Platform implements DynamicPlatformPlugin {
     const index = this.accessories.indexOf(accessory);
     if (index !== -1) {
       this.accessories.splice(index, 1);
+    }
+  }
+
+  private removeCachedHiddenAccessories() {
+    const hiddenAccessories = this.accessories.filter((accessory) =>
+      this.isDeviceHidden(accessory.UUID)
+    );
+    for (const accessory of hiddenAccessories) {
+      this.unregisterHiddenAccessory(accessory);
     }
   }
 
