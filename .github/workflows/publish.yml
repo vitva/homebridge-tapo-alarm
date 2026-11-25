@@ -1,10 +1,6 @@
 name: Publish to npm
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - .github/workflows/publish.yml
   release:
     types: [published, edited]
   workflow_dispatch:
@@ -17,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: npm-publish
@@ -25,24 +22,24 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    environment:
+      name: NPM
     steps:
       - name: Check out source
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event_name == 'push' && 'main' || github.event.release.tag_name || inputs.tag || 'v1.0.0' }}
+          ref: ${{ github.event.release.tag_name || inputs.tag || 'v1.0.0' }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
           package-manager-cache: false
 
-      - name: Use npm with current granular-token support
+      - name: Use npm with trusted publishing support
         run: npm install --global npm@11.15.0
 
       - name: Verify release tag matches package version
-        if: github.event_name != 'push'
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || 'v1.0.0' }}
         run: |
@@ -52,25 +49,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Verify npm token directly against registry
-        env:
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-        run: |
-          STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' --header "Authorization: Bearer ${NPM_TOKEN}" https://registry.npmjs.org/-/whoami)"
-          echo "Direct registry whoami HTTP status: ${STATUS}"
-          if [ "${STATUS}" != "200" ]; then
-            echo "The registry rejects the secret before npm CLI configuration is involved."
-          fi
-
-      - name: Check npm token fingerprint and package access
-        run: |
-          node -e "const t=process.env.NODE_AUTH_TOKEN || ''; console.log('NPM token length:', t.length); console.log('NPM token preview:', t.slice(0,4) + '…' + t.slice(-4));"
-          npm access list packages || true
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish package
+      - name: Publish package through npm Trusted Publishing (OIDC)
         run: npm publish --access public --tag latest
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           ESLINT_USE_FLAT_CONFIG: "false"
