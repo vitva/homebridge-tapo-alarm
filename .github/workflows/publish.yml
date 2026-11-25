@@ -10,6 +10,14 @@ on:
         required: true
         default: v1.0.0
         type: string
+      mode:
+        description: Use stage only for the one-time first publication
+        required: true
+        default: stage
+        type: choice
+        options:
+          - stage
+          - oidc
 
 permissions:
   contents: read
@@ -49,7 +57,14 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Publish package through npm Trusted Publishing (OIDC)
+      - name: Stage first publication
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'stage'
+        run: npm stage publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish through npm Trusted Publishing (OIDC)
+        if: github.event_name == 'release' || inputs.mode == 'oidc'
         run: npm publish --access public --tag latest
         env:
           ESLINT_USE_FLAT_CONFIG: "false"
