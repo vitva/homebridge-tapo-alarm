@@ -9,6 +9,7 @@ require('ts-node').register({
 
 const {
   resolveAlarmState,
+  resolveS200EventAction,
   updateS200Cursor
 } = require('../src/utils/alarmState.ts');
 
@@ -207,4 +208,27 @@ test('S200 cursor supports older responses without IDs using timestamps', () => 
     lastEventId: 501,
     events: [{ id: 501, timestamp: 501, event: 'singleClick' }]
   });
+});
+
+test('S200 event actions map clicks and both physical rotation directions', () => {
+  assert.equal(
+    resolveS200EventAction({ id: 1, event: 'single_click' }),
+    'single-click'
+  );
+  assert.equal(
+    resolveS200EventAction({ id: 2, event: 'doubleClick' }),
+    'double-click'
+  );
+  assert.equal(
+    resolveS200EventAction({ id: 3, event: 'Rotation', rotationDirection: 'right' }),
+    'rotation-right'
+  );
+  assert.equal(
+    resolveS200EventAction({ id: 4, event: 'Rotation', rotationDirection: 'left' }),
+    'rotation-left'
+  );
+  assert.equal(
+    resolveS200EventAction({ id: 5, event: 'unsupported_event' }),
+    undefined
+  );
 });
