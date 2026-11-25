@@ -29,7 +29,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.release.tag_name || inputs.tag || 'v1.0.0' }}
+          ref: ${{ github.event_name == 'push' && 'main' || github.event.release.tag_name || inputs.tag || 'v1.0.0' }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -42,6 +42,7 @@ jobs:
         run: npm install --global npm@11.15.0
 
       - name: Verify release tag matches package version
+        if: github.event_name != 'push'
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || 'v1.0.0' }}
         run: |
