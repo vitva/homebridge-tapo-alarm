@@ -123,7 +123,10 @@ export default class LegacyAPI extends API {
         body = JSON.parse(this.tpLinkCipher!.decrypt(body.result.response));
       }
   
-      this.log.debug('[Send Secure Request]', JSON.stringify(body));
+      const logBody = body?.result?.token
+        ? { ...body, result: { ...body.result, token: '[REDACTED]' } }
+        : body;
+      this.log.debug('[Send Secure Request]', JSON.stringify(logBody));
   
       return {
         response,
