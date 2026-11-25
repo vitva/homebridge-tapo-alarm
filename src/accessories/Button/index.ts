@@ -9,7 +9,10 @@ import HubAccessory, { HubContext } from '../Hub';
 import TapoAccessory from '../../@types/TapoAccessory';
 import Context from '../../@types/Context';
 import Platform from '../../platform';
-import { updateS200Cursor } from '../../utils/alarmState';
+import {
+  resolveS200EventAction,
+  updateS200Cursor
+} from '../../utils/alarmState';
 
 import StatusLowBattery from './characteristics/StatusLowBattery';
 
@@ -206,35 +209,32 @@ export default class ButtonAccessory extends TapoAccessory {
           break;
         }
 
-        if (event.rotationDirection === 'right' && this.rotationRightChar) {
-          this.rotationRightChar.sendEventNotification(
-            this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
-          );
-          this.log.debug(
-            'S200D rotated clockwise:',
-            event.rotationDegrees ?? 'degrees unavailable'
-          );
-          continue;
-        }
-
-        if (event.rotationDirection === 'left' && this.rotationLeftChar) {
-          this.rotationLeftChar.sendEventNotification(
-            this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
-          );
-          this.log.debug(
-            'S200D rotated counter-clockwise:',
-            event.rotationDegrees ?? 'degrees unavailable'
-          );
-          continue;
-        }
-
-        switch ((event.event ?? '').toLowerCase().replace(/[_\s-]/g, '')) {
-          case 'singleclick':
+        const action = resolveS200EventAction(event);
+        switch (action) {
+          case 'rotation-right':
+            this.rotationRightChar?.sendEventNotification(
+              this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+            );
+            this.log.debug(
+              'S200D rotated clockwise:',
+              event.rotationDegrees ?? 'degrees unavailable'
+            );
+            break;
+          case 'rotation-left':
+            this.rotationLeftChar?.sendEventNotification(
+              this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+            );
+            this.log.debug(
+              'S200D rotated counter-clockwise:',
+              event.rotationDegrees ?? 'degrees unavailable'
+            );
+            break;
+          case 'single-click':
             characteristic.sendEventNotification(
               this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
             );
             break;
-          case 'doubleclick':
+          case 'double-click':
             characteristic.sendEventNotification(
               this.platform.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS
             );
