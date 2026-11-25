@@ -39,6 +39,8 @@ export default class Platform implements DynamicPlatformPlugin {
   public readonly hubs: HubAccessory[] = [];
 
   private readonly deviceRetry: { [key: string]: number; } = {};
+  private discoveryInFlight = false;
+  private discoveryRetryTimer?: NodeJS.Timeout;
 
   deviceLocator: NetworkDeviceLocator;
 
@@ -62,7 +64,14 @@ export default class Platform implements DynamicPlatformPlugin {
       this.log.debug('Executed didFinishLaunching callback');
       this.log.debug('Finished initializing platform:', this.config.name);
 
-      this.discoverDevices();
+      void this.discoverDevices();
+    });
+
+    this.api.on('shutdown', () => {
+      if (this.discoveryRetryTimer) {
+        clearTimeout(this.discoveryRetryTimer);
+        this.discoveryRetryTimer = undefined;
+      }
     });
   }
 
@@ -76,6 +85,13 @@ export default class Platform implements DynamicPlatformPlugin {
   }
 
   private async discoverDevices() {
+    if (this.discoveryInFlight) {
+      return;
+    }
+
+    this.discoveryInFlight = true;
+    let discoveryComplete = false;
+
     try {
       const { email, password, addresses } = this.config ?? {};
       if (
@@ -93,16 +109,27 @@ export default class Platform implements DynamicPlatformPlugin {
           );
         }
 
+        discoveryComplete = true;
         return;
       }
 
-      await Promise.all(
+      const parentResults = await Promise.all(
         addresses.map((address) => this.loadDevice(address, email, password))
       );
+      let allParentsFound = parentResults.every(Boolean);
+      let allChildListsRead = true;
 
-      await Promise.all(
-        this.hubs.map(async (hub) => {
+      if (allParentsFound) {
+        for (const hub of this.hubs) {
           const devices = await hub.getChildDevices();
+          if (!Array.isArray(devices)) {
+            allChildListsRead = false;
+            this.log.warn(
+              'Unable to read child-device list; preserving cached accessories until the hub is reachable.'
+            );
+            continue;
+          }
+
           await Promise.all(
             devices.map((device) => {
               if (Object.keys(device || {}).length === 0) {
@@ -115,12 +142,27 @@ export default class Platform implements DynamicPlatformPlugin {
               return this.loadChildDevice(device.device_id, device, hub);
             })
           );
-        })
-      );
+        }
+      }
 
-      this.checkOldDevices();
+      discoveryComplete = allParentsFound && allChildListsRead;
+      if (discoveryComplete) {
+        this.checkOldDevices();
+      } else {
+        this.log.info(
+          'Device discovery is incomplete; cached accessories will be kept and discovery will retry.'
+        );
+      }
     } catch (err: any) {
       this.log.error('Failed to discover devices:', err.message);
+    } finally {
+      this.discoveryInFlight = false;
+      if (!discoveryComplete && !this.discoveryRetryTimer) {
+        this.discoveryRetryTimer = setTimeout(() => {
+          this.discoveryRetryTimer = undefined;
+          void this.discoverDevices();
+        }, 30 * 1000);
+      }
     }
   }
 
@@ -128,9 +170,16 @@ export default class Platform implements DynamicPlatformPlugin {
     const networkDevice = await this.deviceLocator.find(address);
 
     if (!networkDevice) {
-      return;
+      this.log.info('Device is not currently reachable; discovery will retry:', address.value);
+      return false;
     }
     const uuid = networkDevice.uuid;
+
+    // A previous discovery pass may already have initialized this device.
+    // Reuse it rather than creating duplicate Homebridge services or pollers.
+    if (this.registeredDevices.some((device) => device.UUID === uuid)) {
+      return true;
+    }
 
     if (this.deviceRetry[uuid] === undefined) {
       this.deviceRetry[uuid] = this.TIMEOUT_TRIES;
@@ -190,11 +239,11 @@ export default class Platform implements DynamicPlatformPlugin {
             TapoAccessory.getType(deviceInfo),
             deviceInfo?.type
           );
-          return;
+          return false;
         }
 
         this.registeredDevices.push(tapoAccessory);
-        return;
+        return true;
       }
 
       this.log.info('Adding new accessory:', deviceName);
@@ -221,9 +270,10 @@ export default class Platform implements DynamicPlatformPlugin {
 
       this.registeredDevices.push(registeredAccessory);
 
-      return this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
+      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
         accessory
       ]);
+      return true;
     } catch (err: any) {
       this.log.error('Failed to get info about:', address, '|', err.message);
       this.deviceRetry[uuid] -= 1;
