@@ -53,7 +53,7 @@ function getRotationDirection(
     return degrees > 0 ? 'right' : 'left';
   }
 
-  const normalized = event.toLowerCase().replace(/[_\\s-]/g, '');
+  const normalized = event.toLowerCase().replace(/[_\s-]/g, '');
   if (
     normalized.includes('counterclockwise') ||
     normalized.includes('anticlockwise') ||
