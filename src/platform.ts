@@ -116,7 +116,7 @@ export default class Platform implements DynamicPlatformPlugin {
       const parentResults = await Promise.all(
         addresses.map((address) => this.loadDevice(address, email, password))
       );
-      let allParentsFound = parentResults.every(Boolean);
+      const allParentsFound = parentResults.every(Boolean);
       let allChildListsRead = true;
 
       if (allParentsFound) {
@@ -184,7 +184,15 @@ export default class Platform implements DynamicPlatformPlugin {
     if (this.deviceRetry[uuid] === undefined) {
       this.deviceRetry[uuid] = this.TIMEOUT_TRIES;
     } else if (this.deviceRetry[uuid] <= 0) {
-      this.log.info('Retry timeout:', networkDevice.ip, '|', networkDevice.mac);
+      this.log.info(
+        'Connection attempts exhausted; will retry in a later discovery cycle:',
+        networkDevice.ip,
+        '|',
+        networkDevice.mac
+      );
+      // Reset the bounded per-cycle retry budget so a device that comes back
+      // after a longer outage can still be discovered without restarting HB.
+      this.deviceRetry[uuid] = this.TIMEOUT_TRIES;
       return false;
     } else {
       this.log.info('Retry to connect in 10s', ':', networkDevice.ip);
