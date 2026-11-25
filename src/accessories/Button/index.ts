@@ -21,6 +21,7 @@ export default class ButtonAccessory extends TapoAccessory {
   private interval?: NodeJS.Timeout;
   private lastEventUpdate = 0;
   private checking = false;
+  private stopped = false;
 
   public get UUID() {
     return this.accessory.UUID.toString();
@@ -77,6 +78,7 @@ export default class ButtonAccessory extends TapoAccessory {
       service.addCharacteristic(this.platform.Characteristic.StatusLowBattery)
     ).onGet(StatusLowBattery.get.bind(this));
 
+    this.platform.api.on('shutdown', () => this.cleanup());
     void this.setup(characteristic);
   }
 
@@ -88,13 +90,17 @@ export default class ButtonAccessory extends TapoAccessory {
       this.log.warn('Unable to initialize S200 event cursor:', error);
     }
 
+    // Shutdown may happen while the initial log request is still pending.
+    // Do not start a new polling interval after cleanup has already run.
+    if (this.stopped) {
+      return;
+    }
+
     // The upstream implementation immediately recursed after every successful
     // request. Use a bounded interval to avoid continuously polling the H100.
     this.interval = setInterval(() => {
       void this.checkStatus(characteristic);
     }, 1000);
-
-    this.platform.api.on('shutdown', () => this.cleanup());
   }
 
   private async checkStatus(characteristic: CharInstance) {
@@ -133,6 +139,7 @@ export default class ButtonAccessory extends TapoAccessory {
   }
 
   public cleanup() {
+    this.stopped = true;
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = undefined;
