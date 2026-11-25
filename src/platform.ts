@@ -40,6 +40,7 @@ export default class Platform implements DynamicPlatformPlugin {
 
   private readonly deviceRetry: { [key: string]: number; } = {};
   private discoveryInFlight = false;
+  private shuttingDown = false;
   private discoveryRetryTimer?: NodeJS.Timeout;
 
   deviceLocator: NetworkDeviceLocator;
@@ -68,6 +69,7 @@ export default class Platform implements DynamicPlatformPlugin {
     });
 
     this.api.on('shutdown', () => {
+      this.shuttingDown = true;
       if (this.discoveryRetryTimer) {
         clearTimeout(this.discoveryRetryTimer);
         this.discoveryRetryTimer = undefined;
@@ -157,7 +159,7 @@ export default class Platform implements DynamicPlatformPlugin {
       this.log.error('Failed to discover devices:', err.message);
     } finally {
       this.discoveryInFlight = false;
-      if (!discoveryComplete && !this.discoveryRetryTimer) {
+      if (!this.shuttingDown && !discoveryComplete && !this.discoveryRetryTimer) {
         this.discoveryRetryTimer = setTimeout(() => {
           this.discoveryRetryTimer = undefined;
           void this.discoverDevices();
