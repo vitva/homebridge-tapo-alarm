@@ -88,3 +88,39 @@ test('S200 cursor ignores repeated, older, and invalid timestamps', () => {
     { initialized: true, lastTimestamp: 100 }
   );
 });
+
+test('S200D rotation events detect clockwise and counter-clockwise direction', () => {
+  const clockwise = updateS200Cursor(
+    [{ timestamp: 103, event: 'Rotation', rotation_degrees: 30 }],
+    true,
+    102
+  );
+  const counterClockwise = updateS200Cursor(
+    [{ timestamp: 104, click_type: 'Rotation', params_rotation_degrees: -30 }],
+    true,
+    103
+  );
+
+  assert.equal(clockwise.event, 'Rotation');
+  assert.equal(clockwise.rotationDegrees, 30);
+  assert.equal(clockwise.rotationDirection, 'right');
+  assert.equal(counterClockwise.event, 'Rotation');
+  assert.equal(counterClockwise.rotationDegrees, -30);
+  assert.equal(counterClockwise.rotationDirection, 'left');
+});
+
+test('S200D rotation direction can be read from event labels without degrees', () => {
+  const left = updateS200Cursor(
+    [{ timestamp: 105, event: 'rotate_counter_clockwise' }],
+    true,
+    104
+  );
+  const right = updateS200Cursor(
+    [{ timestamp: 106, event: 'rotate_right' }],
+    true,
+    105
+  );
+
+  assert.equal(left.rotationDirection, 'left');
+  assert.equal(right.rotationDirection, 'right');
+});
