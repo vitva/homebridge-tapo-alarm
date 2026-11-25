@@ -86,7 +86,7 @@ Run the automated alarm-state and S200 event tests with:
 npm test
 ```
 
-The test suite covers missing alarm telemetry, alarm-state transitions, S200 startup baselines, single/double clicks, S200D rotation direction, chronological delivery of multiple events, same-timestamp entries, repeated events, and invalid timestamps. GitHub Actions runs the tests on Node.js 20 and 22.
+The test suite covers missing alarm telemetry, alarm-state transitions, S200 startup baselines, single/double clicks, S200D rotation direction, chronological delivery of multiple events, same-timestamp entries, repeated events, and invalid timestamps. GitHub Actions tests the plugin against Homebridge 1.11 and 2.5 on Node.js 22 and 24, including both CommonJS and ESM entry points.
 
 ## Credits
 
