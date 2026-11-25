@@ -23,14 +23,21 @@ test('missing alarm telemetry preserves the last known state', () => {
   assert.equal(resolveAlarmState(undefined), undefined);
 });
 
-test('S200 startup establishes a baseline without replaying an old event', () => {
+test('S200 startup establishes a baseline without replaying old events', () => {
   const update = updateS200Cursor(
-    [{ timestamp: 100, event: 'singleClick' }],
+    [
+      { timestamp: 100, event: 'singleClick' },
+      { timestamp: 90, event: 'doubleClick' }
+    ],
     false,
     0
   );
 
-  assert.deepEqual(update, { initialized: true, lastTimestamp: 100 });
+  assert.deepEqual(update, {
+    initialized: true,
+    lastTimestamp: 100,
+    events: []
+  });
 });
 
 test('S200 first successful poll after startup failure establishes a baseline', () => {
@@ -40,13 +47,18 @@ test('S200 first successful poll after startup failure establishes a baseline', 
     0
   );
 
-  assert.deepEqual(update, { initialized: true, lastTimestamp: 200 });
+  assert.deepEqual(update, {
+    initialized: true,
+    lastTimestamp: 200,
+    events: []
+  });
 });
 
 test('S200 cursor preserves state when logs are unavailable', () => {
   assert.deepEqual(updateS200Cursor(undefined, true, 100), {
     initialized: true,
-    lastTimestamp: 100
+    lastTimestamp: 100,
+    events: []
   });
 });
 
@@ -65,27 +77,27 @@ test('S200 cursor detects a new single or double click once', () => {
   assert.deepEqual(single, {
     initialized: true,
     lastTimestamp: 101,
-    event: 'singleClick'
+    events: [{ timestamp: 101, event: 'singleClick' }]
   });
   assert.deepEqual(double, {
     initialized: true,
     lastTimestamp: 102,
-    event: 'doubleClick'
+    events: [{ timestamp: 102, event: 'doubleClick' }]
   });
 });
 
 test('S200 cursor ignores repeated, older, and invalid timestamps', () => {
   assert.deepEqual(
     updateS200Cursor([{ timestamp: 100, event: 'singleClick' }], true, 100),
-    { initialized: true, lastTimestamp: 100 }
+    { initialized: true, lastTimestamp: 100, events: [] }
   );
   assert.deepEqual(
     updateS200Cursor([{ timestamp: 99, event: 'singleClick' }], true, 100),
-    { initialized: true, lastTimestamp: 100 }
+    { initialized: true, lastTimestamp: 100, events: [] }
   );
   assert.deepEqual(
     updateS200Cursor([{ timestamp: Number.NaN, event: 'singleClick' }], true, 100),
-    { initialized: true, lastTimestamp: 100 }
+    { initialized: true, lastTimestamp: 100, events: [] }
   );
 });
 
@@ -101,12 +113,18 @@ test('S200D rotation events detect clockwise and counter-clockwise direction', (
     103
   );
 
-  assert.equal(clockwise.event, 'Rotation');
-  assert.equal(clockwise.rotationDegrees, 30);
-  assert.equal(clockwise.rotationDirection, 'right');
-  assert.equal(counterClockwise.event, 'Rotation');
-  assert.equal(counterClockwise.rotationDegrees, -30);
-  assert.equal(counterClockwise.rotationDirection, 'left');
+  assert.deepEqual(clockwise.events[0], {
+    timestamp: 103,
+    event: 'Rotation',
+    rotationDegrees: 30,
+    rotationDirection: 'right'
+  });
+  assert.deepEqual(counterClockwise.events[0], {
+    timestamp: 104,
+    event: 'Rotation',
+    rotationDegrees: -30,
+    rotationDirection: 'left'
+  });
 });
 
 test('S200D rotation direction can be read from event labels without degrees', () => {
@@ -121,6 +139,56 @@ test('S200D rotation direction can be read from event labels without degrees', (
     105
   );
 
-  assert.equal(left.rotationDirection, 'left');
-  assert.equal(right.rotationDirection, 'right');
+  assert.equal(left.events[0].rotationDirection, 'left');
+  assert.equal(right.events[0].rotationDirection, 'right');
+});
+
+test('S200 cursor returns every unseen event in chronological order', () => {
+  const update = updateS200Cursor(
+    [
+      { timestamp: 104, event: 'Rotation', rotation_degrees: -15 },
+      { timestamp: 103, event: 'doubleClick' },
+      { timestamp: 102, event: 'Rotation', rotation_degrees: 15 },
+      { timestamp: 101, event: 'singleClick' },
+      { timestamp: 100, event: 'singleClick' }
+    ],
+    true,
+    100
+  );
+
+  assert.equal(update.lastTimestamp, 104);
+  assert.deepEqual(
+    update.events.map(({ timestamp, event, rotationDirection }) => ({
+      timestamp,
+      event,
+      rotationDirection
+    })),
+    [
+      { timestamp: 101, event: 'singleClick', rotationDirection: undefined },
+      { timestamp: 102, event: 'Rotation', rotationDirection: 'right' },
+      { timestamp: 103, event: 'doubleClick', rotationDirection: undefined },
+      { timestamp: 104, event: 'Rotation', rotationDirection: 'left' }
+    ]
+  );
+});
+
+test('S200 cursor retains multiple events that share a timestamp', () => {
+  const update = updateS200Cursor(
+    [
+      { timestamp: 102, event: 'doubleClick' },
+      { timestamp: 102, event: 'singleClick' },
+      { timestamp: 101, event: 'singleClick' }
+    ],
+    true,
+    100
+  );
+
+  assert.deepEqual(
+    update.events.map(({ timestamp, event }) => ({ timestamp, event })),
+    [
+      { timestamp: 101, event: 'singleClick' },
+      { timestamp: 102, event: 'doubleClick' },
+      { timestamp: 102, event: 'singleClick' }
+    ]
+  );
 });
