@@ -27,9 +27,10 @@
     "dev": "nodemon src/index.ts",
     "build": "rimraf ./dist && tsc",
     "lint": "eslint . --max-warnings=0",
-    "prepublishOnly": "npm run lint && npm run build",
+    "prepublishOnly": "npm run lint && npm test && npm run build",
     "watch": "npm run build && npm link && nodemon",
-    "prepare": "npm run build"
+    "prepare": "npm run build",
+    "test": "node --test test/*.test.cjs"
   },
   "keywords": [
     "homebridge-plugin",

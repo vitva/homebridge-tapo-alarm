@@ -47,8 +47,10 @@ export default {
     } as any),
   getTriggerLogs: (childId: string): any => ({
     ...controlChild(childId, 'get_trigger_logs', {
+      // Fetch a small recent window so fast interactions between polls are
+      // not lost. H100 trigger logs are returned newest first.
       start_id: 0,
-      page_size: 1
+      page_size: 20
     })
   }),
   stopAlarm: (): boolean =>

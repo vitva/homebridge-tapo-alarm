@@ -9,6 +9,10 @@ import HubAccessory, { HubContext } from '../Hub';
 import TapoAccessory from '../../@types/TapoAccessory';
 import Context from '../../@types/Context';
 import Platform from '../../platform';
+import {
+  resolveS200EventAction,
+  updateS200Cursor
+} from '../../utils/alarmState';
 
 import StatusLowBattery from './characteristics/StatusLowBattery';
 
@@ -19,8 +23,12 @@ export type AccessoryThisType = ThisType<{
 
 export default class ButtonAccessory extends TapoAccessory {
   private interval?: NodeJS.Timeout;
-  private lastEventUpdate = 0;
+  private lastEventId = 0;
   private checking = false;
+  private stopped = false;
+  private eventCursorInitialized = false;
+  private rotationRightChar?: CharInstance;
+  private rotationLeftChar?: CharInstance;
 
   public get UUID() {
     return this.accessory.UUID.toString();
@@ -70,6 +78,10 @@ export default class ButtonAccessory extends TapoAccessory {
         ]
       });
 
+    if (this.model.toUpperCase() === 'S200D') {
+      this.setupRotationServices(service);
+    }
+
     (
       service.getCharacteristic(
         this.platform.Characteristic.StatusLowBattery
@@ -77,49 +89,153 @@ export default class ButtonAccessory extends TapoAccessory {
       service.addCharacteristic(this.platform.Characteristic.StatusLowBattery)
     ).onGet(StatusLowBattery.get.bind(this));
 
+    this.platform.api.on('shutdown', () => this.cleanup());
     void this.setup(characteristic);
+  }
+
+  private setupRotationServices(clickService: any) {
+    const labelService =
+      this.accessory.getService(this.platform.Service.ServiceLabel) ||
+      this.accessory.addService(this.platform.Service.ServiceLabel);
+
+    labelService
+      .getCharacteristic(
+        this.platform.Characteristic.ServiceLabelNamespace
+      )
+      .updateValue(
+        this.platform.Characteristic.ServiceLabelNamespace.ARABIC_NUMERALS
+      );
+
+    clickService
+      .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
+      .updateValue(1);
+    clickService.addLinkedService(labelService);
+
+    const createRotationService = (
+      subtype: string,
+      name: string,
+      labelIndex: number
+    ): CharInstance => {
+      const service =
+        this.accessory.getServiceById(
+          this.platform.Service.StatelessProgrammableSwitch,
+          subtype
+        ) ||
+        this.accessory.addService(
+          this.platform.Service.StatelessProgrammableSwitch,
+          name,
+          subtype
+        );
+
+      service
+        .getCharacteristic(
+          this.platform.Characteristic.ProgrammableSwitchEvent
+        )
+        .setProps({
+          validValues: [
+            this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+          ]
+        });
+
+      service
+        .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
+        .updateValue(labelIndex);
+      service.addLinkedService(labelService);
+
+      return service.getCharacteristic(
+        this.platform.Characteristic.ProgrammableSwitchEvent
+      );
+    };
+
+    this.rotationRightChar = createRotationService(
+      's200d-rotation-right',
+      'S200D Поворот по часовой стрелке',
+      2
+    );
+    this.rotationLeftChar = createRotationService(
+      's200d-rotation-left',
+      'S200D Поворот против часовой стрелки',
+      3
+    );
   }
 
   private async setup(characteristic: CharInstance) {
     try {
       const init = await this.hub.getChildLogs(this.deviceInfo.device_id);
-      this.lastEventUpdate = init?.logs?.[0]?.timestamp ?? 0;
+      if (Array.isArray(init?.logs)) {
+        const cursor = updateS200Cursor(init.logs, false, 0);
+        this.lastEventId = cursor.lastEventId;
+        this.eventCursorInitialized = cursor.initialized;
+      }
     } catch (error) {
       this.log.warn('Unable to initialize S200 event cursor:', error);
     }
 
-    // The upstream implementation immediately recursed after every successful
-    // request. Use a bounded interval to avoid continuously polling the H100.
+    // Shutdown may happen while the initial log request is still pending.
+    // Do not start a new polling interval after cleanup has already run.
+    if (this.stopped) {
+      return;
+    }
+
     this.interval = setInterval(() => {
       void this.checkStatus(characteristic);
     }, 1000);
-
-    this.platform.api.on('shutdown', () => this.cleanup());
   }
 
   private async checkStatus(characteristic: CharInstance) {
-    if (this.checking) {
+    if (this.stopped || this.checking) {
       return;
     }
 
     this.checking = true;
     try {
       const response = await this.hub.getChildLogs(this.deviceInfo.device_id);
-      const lastEvent = response?.logs?.[0];
+      if (this.stopped) {
+        return;
+      }
 
-      if (
-        lastEvent?.timestamp !== undefined &&
-        this.lastEventUpdate < lastEvent.timestamp
-      ) {
-        this.lastEventUpdate = lastEvent.timestamp;
-        switch (lastEvent.event ?? '') {
-          case 'singleClick':
-            characteristic.updateValue(
+      const cursor = updateS200Cursor(
+        response?.logs,
+        this.eventCursorInitialized,
+        this.lastEventId
+      );
+      this.eventCursorInitialized = cursor.initialized;
+      this.lastEventId = cursor.lastEventId;
+
+      // Emit every unseen event in chronological order. A single poll can
+      // contain multiple clicks/rotations, and none should be collapsed.
+      for (const event of cursor.events) {
+        if (this.stopped) {
+          break;
+        }
+
+        const action = resolveS200EventAction(event);
+        switch (action) {
+          case 'rotation-right':
+            this.rotationRightChar?.sendEventNotification(
+              this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+            );
+            this.log.debug(
+              'S200D rotated clockwise:',
+              event.rotationDegrees ?? 'degrees unavailable'
+            );
+            break;
+          case 'rotation-left':
+            this.rotationLeftChar?.sendEventNotification(
+              this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+            );
+            this.log.debug(
+              'S200D rotated counter-clockwise:',
+              event.rotationDegrees ?? 'degrees unavailable'
+            );
+            break;
+          case 'single-click':
+            characteristic.sendEventNotification(
               this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
             );
             break;
-          case 'doubleClick':
-            characteristic.updateValue(
+          case 'double-click':
+            characteristic.sendEventNotification(
               this.platform.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS
             );
             break;
@@ -133,6 +249,7 @@ export default class ButtonAccessory extends TapoAccessory {
   }
 
   public cleanup() {
+    this.stopped = true;
     if (this.interval) {
       clearInterval(this.interval);
       this.interval = undefined;

@@ -9,6 +9,7 @@ import TapoAccessory from '../../@types/TapoAccessory';
 import Context from '../../@types/Context';
 import TPLink from '../../api/TPLink';
 import Platform from '../../platform';
+import { resolveAlarmState } from '../../utils/alarmState';
 
 import CurrentState from './characteristics/CurrentState';
 import TargetState from './characteristics/TargetState';
@@ -18,6 +19,7 @@ export type AccessoryThisType = ThisType<{
   readonly tpLink: TPLink;
   readonly log: Logger;
   readonly mac: string;
+  lastAlarmState?: boolean;
 }>;
 
 export interface HubContext {
@@ -33,7 +35,7 @@ export default class HubAccessory extends TapoAccessory {
   private readonly targetChar: CharInstance;
   private alarmPollTimer?: NodeJS.Timeout;
   private alarmPollInFlight = false;
-  private lastAlarmState?: boolean;
+  public lastAlarmState?: boolean;
 
   public get UUID() {
     return this.accessory.UUID.toString();
@@ -85,15 +87,17 @@ export default class HubAccessory extends TapoAccessory {
     this.targetChar = service
       .getCharacteristic(this.Characteristic.SecuritySystemTargetState)
       .setProps({
-        validValues: [
-          this.Characteristic.SecuritySystemTargetState.DISARM,
-          this.Characteristic.SecuritySystemTargetState.AWAY_ARM
-        ],
-        // HomeKit may read the target state, but this plugin does not control
-        // Tapo arming or siren playback.
-        perms: ['pr', 'ev'] as any
+        // Keep the required HomeKit target characteristic, but expose only
+        // DISARM so HomeKit cannot arm the Tapo system.
+        validValues: [this.Characteristic.SecuritySystemTargetState.DISARM],
       })
-      .onGet(TargetState.get.bind(this));
+      .onGet(TargetState.get.bind(this))
+      .onSet(() => {
+        // A DISARM write is harmless and intentionally does not control Tapo.
+        this.targetChar.updateValue(
+          this.Characteristic.SecuritySystemTargetState.DISARM
+        );
+      });
 
     this.targetChar.updateValue(
       this.Characteristic.SecuritySystemTargetState.DISARM
@@ -118,7 +122,15 @@ export default class HubAccessory extends TapoAccessory {
     this.alarmPollInFlight = true;
     try {
       const deviceInfo = await this.tpLink.getInfo();
-      const alarmActive = deviceInfo.in_alarm === true;
+      // An omitted alarm flag is unknown, not a confirmed alarm-clear event.
+      const alarmActive = resolveAlarmState(
+        deviceInfo.in_alarm,
+        this.lastAlarmState
+      );
+      if (alarmActive === undefined) {
+        this.log.debug('H100 alarm state is unavailable; keeping the last known state.');
+        return;
+      }
 
       if (this.lastAlarmState !== alarmActive) {
         this.lastAlarmState = alarmActive;

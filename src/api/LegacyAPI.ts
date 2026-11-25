@@ -27,8 +27,12 @@ export default class LegacyAPI extends API {
       true
     );
 
-    this.log.debug('[Login] BE AWARE, SENSITIVE DATA!!', JSON.stringify(body));
+    // Never write authentication responses or tokens to the Homebridge log.
     this.loginToken = body?.result?.token;
+
+    if (!this.loginToken) {
+      throw new Error('Login response did not include an authentication token');
+    }
   }
 
   public async setup() {
@@ -67,7 +71,14 @@ export default class LegacyAPI extends API {
       }
     );
 
-    this.log.debug('[Send Normal Request]', JSON.stringify(response.data));
+    const logData =
+      method === 'handshake' && response.data?.result?.key
+        ? {
+            ...response.data,
+            result: { ...response.data.result, key: '[REDACTED]' }
+          }
+        : response.data;
+    this.log.debug('[Send Normal Request]', JSON.stringify(logData));
     return response;
   }
 
@@ -119,7 +130,10 @@ export default class LegacyAPI extends API {
         body = JSON.parse(this.tpLinkCipher!.decrypt(body.result.response));
       }
   
-      this.log.debug('[Send Secure Request]', JSON.stringify(body));
+      const logBody = body?.result?.token
+        ? { ...body, result: { ...body.result, token: '[REDACTED]' } }
+        : body;
+      this.log.debug('[Send Secure Request]', JSON.stringify(logBody));
   
       return {
         response,
@@ -165,7 +179,7 @@ export default class LegacyAPI extends API {
     });
 
     const key = response?.data?.result?.key;
-    this.log.debug('[Handshake]', JSON.stringify(response.data));
+    this.log.debug('[Handshake] Device handshake response received');
 
     if (!key) {
       throw new Error('Failed to handshake with device');
