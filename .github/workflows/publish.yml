@@ -43,8 +43,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 24
+          node-version: 22
           package-manager-cache: false
+          registry-url: https://registry.npmjs.org/
 
       - name: Use npm with trusted publishing support
         run: npm install --global npm@11.15.0
@@ -59,12 +60,12 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Stage first publication
+      - name: Publish initial version using npm token
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'stage'
-        run: npm stage publish --access public
+        run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
-      - name: Publish through npm Trusted Publishing (OIDC)
+      - name: Publish updates through npm Trusted Publishing (OIDC)
         if: github.event_name == 'release' || inputs.mode == 'oidc'
-        run: npm publish --access public --tag latest
+        run: npm publish --provenance --access public --tag latest
