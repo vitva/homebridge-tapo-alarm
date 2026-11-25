@@ -44,7 +44,7 @@
 </div>
 <script>
 (async () => {
-  homebridge.disableSaveButton();
+  if (typeof homebridge.disableSaveButton === 'function') homebridge.disableSaveButton();
   const PLATFORM = 'HomebridgeTapoAlarm';
   let blocks = [];
   let config = {};
