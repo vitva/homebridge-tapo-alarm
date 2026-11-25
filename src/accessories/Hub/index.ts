@@ -26,6 +26,9 @@ export interface HubContext {
   name: string;
   child: true;
   parent: string;
+  deviceId?: string;
+  model?: string;
+  deviceType?: string;
 }
 
 export default class HubAccessory extends TapoAccessory {

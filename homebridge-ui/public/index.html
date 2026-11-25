@@ -1,0 +1,203 @@
+<div class="container-fluid px-0">
+  <div class="mb-4">
+    <h3>Homebridge Tapo Alarm &amp; Buttons</h3>
+    <p class="text-muted">Настройки подключения и список обнаруженных устройств. Отключённые устройства остаются доступными через Tapo, но не публикуются этим плагином в HomeKit.</p>
+  </div>
+  <div class="card mb-4">
+    <div class="card-header"><strong>Устройства</strong></div>
+    <div class="card-body">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <span class="text-muted small">Управление видимостью отдельных устройств</span>
+        <button id="refresh-devices" class="btn btn-sm btn-outline-secondary" type="button">Обновить список</button>
+      </div>
+      <div id="device-list"><div class="text-muted">Загрузка устройств…</div></div>
+      <div class="small text-muted mt-3">Если устройство только что добавлено в Tapo, сначала перезапусти Homebridge и снова открой эти настройки.</div>
+    </div>
+  </div>
+  <div class="card mb-4">
+    <div class="card-header"><strong>Подключение Tapo</strong></div>
+    <div class="card-body">
+      <div class="mb-3">
+        <label class="form-label" for="config-name">Название</label>
+        <input id="config-name" class="form-control" type="text" value="Tapo Alarm">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="email">Электронная почта аккаунта Tapo</label>
+        <input id="email" class="form-control" type="email" autocomplete="username">
+      </div>
+      <div class="mb-3">
+        <label class="form-label" for="password">Пароль аккаунта Tapo</label>
+        <input id="password" class="form-control" type="password" autocomplete="current-password">
+      </div>
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <label class="form-label mb-0">Адреса H100</label>
+        <button id="add-address" class="btn btn-sm btn-outline-secondary" type="button">Добавить H100</button>
+      </div>
+      <div id="addresses"></div>
+      <div class="form-text">Укажи IP-адрес со статической привязкой или MAC-адрес каждого H100.</div>
+    </div>
+  </div>
+  <div class="d-flex align-items-center gap-3 mb-3">
+    <button id="save" class="btn btn-primary" type="button">Сохранить настройки</button>
+    <span id="status" class="small text-muted" role="status"></span>
+  </div>
+</div>
+<script>
+(async () => {
+  if (typeof homebridge.disableSaveButton === 'function') homebridge.disableSaveButton();
+  const PLATFORM = 'HomebridgeTapoAlarm';
+  let blocks = [];
+  let config = {};
+  let cachedDevices = [];
+  let hiddenDevices = [];
+  const byId = (id) => document.getElementById(id);
+  const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
+  function normalizeHidden(value) {
+    if (!Array.isArray(value)) return [];
+    return value.map((item) => typeof item === 'string'
+      ? { uuid: item, name: 'Скрытое устройство', model: '', deviceId: '' }
+      : item).filter((item) => item && typeof item.uuid === 'string');
+  }
+  function renderAddresses(addresses) {
+    const root = byId('addresses');
+    root.innerHTML = '';
+    (addresses.length ? addresses : [{ value: '', type: 'MAC' }]).forEach((address) => {
+      const row = document.createElement('div');
+      row.className = 'row g-2 align-items-center mb-2 address-row';
+      row.innerHTML = '<div class="col-7"><input class="form-control address-value" type="text" placeholder="MAC или IP" value="' + escapeHtml(address.value) + '" aria-label="Адрес H100"></div>' +
+        '<div class="col-3"><select class="form-select address-type" aria-label="Тип адреса"><option value="MAC" ' + (address.type === 'MAC' ? 'selected' : '') + '>MAC</option><option value="IP" ' + (address.type === 'IP' ? 'selected' : '') + '>IP</option></select></div>' +
+        '<div class="col-2"><button class="btn btn-outline-danger w-100 remove-address" type="button" aria-label="Удалить адрес">×</button></div>';
+      row.querySelector('.remove-address').addEventListener('click', () => {
+        row.remove();
+        if (!root.querySelector('.address-row')) renderAddresses([]);
+      });
+      root.appendChild(row);
+    });
+  }
+  function readAddresses() {
+    return [...document.querySelectorAll('.address-row')].map((row) => ({
+      value: row.querySelector('.address-value').value.trim(),
+      type: row.querySelector('.address-type').value
+    })).filter((item) => item.value);
+  }
+  function renderDevices() {
+    const map = new Map();
+    for (const accessory of cachedDevices) {
+      if (!accessory || !accessory.UUID) continue;
+      const context = accessory.context || {};
+      map.set(accessory.UUID, {
+        uuid: accessory.UUID,
+        name: accessory.displayName || context.name || 'Tapo',
+        model: context.model || '',
+        deviceId: context.deviceId || accessory.UUID,
+        deviceType: context.deviceType || '',
+        hidden: false
+      });
+    }
+    for (const item of hiddenDevices) {
+      const existing = map.get(item.uuid);
+      map.set(item.uuid, {
+        uuid: item.uuid,
+        name: existing?.name || item.name || 'Скрытое устройство',
+        model: existing?.model || item.model || '',
+        deviceId: existing?.deviceId || item.deviceId || item.uuid,
+        deviceType: existing?.deviceType || item.deviceType || '',
+        hidden: true
+      });
+    }
+    const devices = [...map.values()].sort((a, b) => a.name.localeCompare(b.name, 'ru'));
+    const root = byId('device-list');
+    if (!devices.length) {
+      root.innerHTML = '<div class="alert alert-secondary mb-0">Пока нет обнаруженных устройств. Проверь подключение H100 и обнови список после запуска плагина.</div>';
+      return;
+    }
+    root.innerHTML = devices.map((device) =>
+      '<div class="d-flex justify-content-between align-items-center border-bottom py-3">' +
+      '<div class="me-3" style="min-width:0"><div class="fw-semibold">' + escapeHtml(device.name) + '</div>' +
+      '<div class="small text-muted">' + escapeHtml(device.model || device.deviceType || 'Tapo') +
+      ' · ID: <code>' + escapeHtml(device.deviceId) + '</code></div></div>' +
+      '<div class="form-check form-switch flex-shrink-0"><input class="form-check-input device-visibility" type="checkbox" role="switch" data-uuid="' +
+      escapeHtml(device.uuid) + '" ' + (device.hidden ? '' : 'checked') + ' aria-label="Показывать устройство в HomeKit">' +
+      '<label class="form-check-label small">' + (device.hidden ? 'Скрыто' : 'В HomeKit') + '</label></div></div>'
+    ).join('');
+    root.querySelectorAll('.device-visibility').forEach((control) => {
+      control.addEventListener('change', () => {
+        const row = control.closest('.d-flex');
+        row.querySelector('.form-check-label').textContent = control.checked ? 'В HomeKit' : 'Скрыто';
+        const uuid = control.dataset.uuid;
+        const device = devices.find((item) => item.uuid === uuid);
+        if (!device) return;
+        if (control.checked) {
+          hiddenDevices = hiddenDevices.filter((item) => item.uuid !== uuid);
+        } else if (!hiddenDevices.some((item) => item.uuid === uuid)) {
+          hiddenDevices.push({
+            uuid, name: device.name, model: device.model,
+            deviceId: device.deviceId, deviceType: device.deviceType
+          });
+        }
+      });
+    });
+  }
+  async function refreshDevices() {
+    byId('device-list').innerHTML = '<div class="text-muted">Обновление…</div>';
+    try {
+      cachedDevices = await homebridge.getCachedAccessories();
+      renderDevices();
+    } catch (error) {
+      byId('device-list').innerHTML = '<div class="alert alert-warning">' + escapeHtml(error.message || error) + '</div>';
+    }
+  }
+  try {
+    blocks = await homebridge.getPluginConfig();
+    const index = blocks.findIndex((item) => item.platform === PLATFORM);
+    config = index >= 0 ? { ...blocks[index] } : { platform: PLATFORM, name: 'Tapo Alarm' };
+    hiddenDevices = normalizeHidden(config.hiddenDevices);
+    byId('config-name').value = config.name || 'Tapo Alarm';
+    byId('email').value = config.email || '';
+    byId('password').value = config.password || '';
+    renderAddresses(Array.isArray(config.addresses) ? config.addresses : []);
+    await refreshDevices();
+    byId('refresh-devices').addEventListener('click', refreshDevices);
+    byId('add-address').addEventListener('click', () => {
+      const addresses = readAddresses();
+      addresses.push({ value: '', type: 'MAC' });
+      renderAddresses(addresses);
+    });
+    byId('save').addEventListener('click', async () => {
+      const name = byId('config-name').value.trim() || 'Tapo Alarm';
+      const email = byId('email').value.trim();
+      const password = byId('password').value;
+      const addresses = readAddresses();
+      if (!email || !password || !addresses.length) {
+        homebridge.toast.error('Укажи почту, пароль Tapo и хотя бы один адрес H100.');
+        return;
+      }
+      const next = { ...config, platform: PLATFORM, name, email, password, addresses, hiddenDevices };
+      const nextBlocks = [...blocks];
+      const currentIndex = nextBlocks.findIndex((item) => item.platform === PLATFORM);
+      if (currentIndex >= 0) nextBlocks[currentIndex] = next;
+      else nextBlocks.push(next);
+      byId('save').disabled = true;
+      byId('status').textContent = 'Сохранение…';
+      try {
+        await homebridge.updatePluginConfig(nextBlocks);
+        await homebridge.savePluginConfig();
+        config = next;
+        blocks = nextBlocks;
+        byId('status').textContent = 'Сохранено. Homebridge применит изменения после перезапуска.';
+        homebridge.toast.success('Настройки сохранены. Homebridge перезапустится.');
+      } catch (error) {
+        byId('status').textContent = 'Не удалось сохранить настройки.';
+        homebridge.toast.error(error.message || String(error));
+      } finally {
+        byId('save').disabled = false;
+      }
+    });
+  } catch (error) {
+    byId('device-list').innerHTML = '<div class="alert alert-danger">' + escapeHtml(error.message || error) + '</div>';
+    homebridge.toast.error(error.message || String(error));
+  }
+})();
+</script>

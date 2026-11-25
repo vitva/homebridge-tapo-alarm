@@ -26,6 +26,7 @@
   "files": [
     "dist/",
     "dist-esm/",
+    "homebridge-ui/",
     "README.md",
     "LICENSE",
     "config.schema.json"

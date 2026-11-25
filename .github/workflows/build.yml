@@ -29,6 +29,17 @@ jobs:
       - name: Test against Homebridge ${{ matrix.homebridge-version }}
         run: npm install --no-save --package-lock=false homebridge@${{ matrix.homebridge-version }}
 
+      - name: Validate custom Homebridge UI
+        run: |
+          node - <<'NODE'
+          const fs = require('node:fs');
+          JSON.parse(fs.readFileSync('config.schema.json', 'utf8'));
+          const html = fs.readFileSync('homebridge-ui/public/index.html', 'utf8');
+          const script = html.match(/<script>([\s\S]*?)<\/script>/);
+          if (!script) throw new Error('Custom UI script was not found');
+          new Function(script[1]);
+          NODE
+
       - name: Lint the project
         run: npm run lint
         env:
@@ -53,7 +64,7 @@ jobs:
         if: matrix.homebridge-version == '1.11.4'
         run: |
           npm pack --dry-run --ignore-scripts --json > pack.json
-          node -e "const p=require('./package.json'); const files=require('./pack.json')[0].files.map(f=>f.path); for (const f of [p.main, p.exports['.'].import, p.exports['.'].require]) { const normalized=f.replace(/^\\.\\//, ''); if (!files.includes(normalized)) throw new Error('Package is missing entry point: '+normalized); }"
+          node -e "const p=require('./package.json'); const files=require('./pack.json')[0].files.map(f=>f.path); for (const f of [p.main, p.exports['.'].import, p.exports['.'].require, 'homebridge-ui/public/index.html']) { const normalized=f.replace(/^\\.\\//, ''); if (!files.includes(normalized)) throw new Error('Package is missing entry point: '+normalized); }"
           node -e "const p=require('./package.json'); const {PLUGIN_NAME}=require('./dist/settings.js'); if (PLUGIN_NAME !== p.name) throw new Error('Homebridge plugin identifier must match package name: '+p.name+' !== '+PLUGIN_NAME);"
           node -e "let registered; require('./dist/index.js').default({registerPlatform(name, platform) { registered={name, platform}; }}); if (registered?.name !== 'HomebridgeTapoAlarm' || typeof registered.platform !== 'function') throw new Error('CommonJS entry point did not register the platform');"
           node --input-type=module -e "import plugin from './dist-esm/index.js'; let registered; plugin({registerPlatform(name, platform) { registered={name, platform}; }}); if (registered?.name !== 'HomebridgeTapoAlarm' || typeof registered.platform !== 'function') throw new Error('ESM entry point did not register the platform');"
