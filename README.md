@@ -1,4 +1,4 @@
-# Homebridge Tapo Alarm
+# Homebridge Tapo Alarm & Buttons
 
 [![Build and Lint](https://github.com/vitva/homebridge-tapo-alarm/actions/workflows/build.yml/badge.svg)](https://github.com/vitva/homebridge-tapo-alarm/actions/workflows/build.yml)
 [![CodeQL](https://github.com/vitva/homebridge-tapo-alarm/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/vitva/homebridge-tapo-alarm/actions/workflows/codeql-analysis.yml)
@@ -40,7 +40,7 @@ This is an independent derivative project and is not affiliated with TP-Link.
 
 ## Installation
 
-Install through Homebridge UI or with `npm install -g homebridge-tapo-alarm`.
+Install through Homebridge UI or with `npm install -g homebridge-tapo-alarm-buttons`.
 
 > CHILD BRIDGE: While not required, install this plugin as a Child Bridge for the best performance. Most of the time the response time between the app and the device is 80ms. With the official app, response times were 1-2 seconds.
 
