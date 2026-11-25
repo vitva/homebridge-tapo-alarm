@@ -1,3 +1,4 @@
+# Re-run publishing after npm token rotation
 name: Publish to npm
 
 on:
