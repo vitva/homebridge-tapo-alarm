@@ -228,7 +228,7 @@ export default class ButtonAccessory extends TapoAccessory {
           continue;
         }
 
-        switch ((event.event ?? '').toLowerCase().replace(/[_\\s-]/g, '')) {
+        switch ((event.event ?? '').toLowerCase().replace(/[_\s-]/g, '')) {
           case 'singleclick':
             characteristic.sendEventNotification(
               this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
