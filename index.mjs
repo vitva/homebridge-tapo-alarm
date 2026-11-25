@@ -1,3 +1,1 @@
-import plugin from './dist/index.js';
-
-export default plugin.default;
+export { default } from './dist-esm/index.js';
