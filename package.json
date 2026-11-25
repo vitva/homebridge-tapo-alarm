@@ -2,7 +2,7 @@
   "private": false,
   "displayName": "Homebridge Tapo Alarm & Buttons",
   "name": "homebridge-tapo-alarm-buttons",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Homebridge plugin for Tapo H100 alarm-state reporting and S200 button support",
   "license": "Apache-2.0",
   "repository": {
