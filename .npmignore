@@ -61,7 +61,4 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 
-# Exclude CommonJS build output from source package, but retain the ESM output
-/dist
-!/dist-esm/
-!/dist-esm/**
+# Keep both generated runtime builds: dist (CommonJS) and dist-esm (ESM)
