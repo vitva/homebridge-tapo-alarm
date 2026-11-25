@@ -3,7 +3,11 @@ const assert = require('node:assert/strict');
 const { test } = require('node:test');
 
 require('ts-node').register({
-  transpileOnly: true
+  transpileOnly: true,
+  compilerOptions: {
+    module: 'CommonJS',
+    moduleResolution: 'Node'
+  }
 });
 
 const {
