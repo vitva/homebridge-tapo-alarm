@@ -77,8 +77,8 @@ export default class HubAccessory extends TapoAccessory {
       .setCharacteristic(this.Characteristic.SerialNumber, this.mac);
 
     const service =
-      this.accessory.getService(this.Characteristic.SecuritySystem) ||
-      this.accessory.addService(this.Characteristic.SecuritySystem);
+      this.accessory.getService(this.platform.Service.SecuritySystem) ||
+      this.accessory.addService(this.platform.Service.SecuritySystem);
 
     this.currentChar = service
       .getCharacteristic(this.Characteristic.SecuritySystemCurrentState)
