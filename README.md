@@ -40,6 +40,8 @@ This is an independent derivative project and is not affiliated with TP-Link.
 
 ## Installation
 
+Install through Homebridge UI or with `npm install -g homebridge-tapo-alarm`.
+
 > CHILD BRIDGE: While not required, install this plugin as a Child Bridge for the best performance. Most of the time the response time between the app and the device is 80ms. With the official app, response times were 1-2 seconds.
 
 ### Current device types
