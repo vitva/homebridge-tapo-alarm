@@ -122,6 +122,12 @@ export default class Platform implements DynamicPlatformPlugin {
       let allChildListsRead = true;
 
       if (allParentsFound) {
+        // Build the child UUID set from this discovery pass only. Retaining
+        // stale entries would prevent genuinely removed children being pruned.
+        Object.keys(this.loadedChildUUIDs).forEach((uuid) => {
+          delete this.loadedChildUUIDs[uuid];
+        });
+
         for (const hub of this.hubs) {
           const devices = await hub.getChildDevices();
           if (!Array.isArray(devices)) {
@@ -132,18 +138,27 @@ export default class Platform implements DynamicPlatformPlugin {
             continue;
           }
 
-          await Promise.all(
-            devices.map((device) => {
+          const childResults = await Promise.all(
+            devices.map(async (device) => {
               if (Object.keys(device || {}).length === 0) {
-                return Promise.resolve();
+                return true;
               }
 
-              this.loadedChildUUIDs[
-                this.api.hap.uuid.generate(device.device_id)
-              ] = true;
-              return this.loadChildDevice(device.device_id, device, hub);
+              const childUUID = this.api.hap.uuid.generate(device.device_id);
+              const loaded = await this.loadChildDevice(
+                device.device_id,
+                device,
+                hub
+              );
+              if (loaded) {
+                this.loadedChildUUIDs[childUUID] = true;
+              }
+              return loaded;
             })
           );
+          if (childResults.some((loaded) => !loaded)) {
+            allChildListsRead = false;
+          }
         }
       }
 
@@ -297,11 +312,16 @@ export default class Platform implements DynamicPlatformPlugin {
     parent: HubAccessory
   ) {
     const uuid = this.api.hap.uuid.generate(id);
+    if (this.registeredDevices.some((device) => device.UUID === uuid)) {
+      return true;
+    }
+
     if (this.deviceRetry[uuid] === undefined) {
       this.deviceRetry[uuid] = this.TIMEOUT_TRIES;
     } else if (this.deviceRetry[uuid] <= 0) {
-      this.log.info('Retry timeout:', id);
-      return;
+      this.log.info('Child connection attempts exhausted; will retry in a later discovery cycle:', id);
+      this.deviceRetry[uuid] = this.TIMEOUT_TRIES;
+      return false;
     } else {
       this.log.info('Retry to connect in 10s', ':', id);
       await delay(10 * 1000);
@@ -347,11 +367,11 @@ export default class Platform implements DynamicPlatformPlugin {
             TapoAccessory.GetChildType(deviceInfo),
             deviceInfo?.type
           );
-          return;
+          return false;
         }
 
         this.registeredDevices.push(registeredAccessory);
-        return;
+        return true;
       }
 
       this.log.info('Adding new child accessory:', deviceName);
@@ -377,14 +397,15 @@ export default class Platform implements DynamicPlatformPlugin {
           TapoAccessory.GetChildType(deviceInfo),
           deviceInfo?.type
         );
-        return;
+        return false;
       }
 
       this.registeredDevices.push(registeredAccessory);
 
-      return this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
+      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
         accessory
       ]);
+      return true;
     } catch (err: any) {
       this.log.error('Failed to get info about child:', id, '|', err.message);
       this.deviceRetry[uuid] -= 1;
