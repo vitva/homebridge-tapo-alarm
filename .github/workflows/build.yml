@@ -35,7 +35,7 @@ jobs:
           const fs = require('node:fs');
           JSON.parse(fs.readFileSync('config.schema.json', 'utf8'));
           const html = fs.readFileSync('homebridge-ui/public/index.html', 'utf8');
-          const script = html.match(/<script>([\\s\\S]*?)<\\/script>/);
+          const script = html.match(/<script>([\s\S]*?)<\/script>/);
           if (!script) throw new Error('Custom UI script was not found');
           new Function(script[1]);
           NODE
