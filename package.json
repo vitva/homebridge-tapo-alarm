@@ -2,8 +2,8 @@
   "private": false,
   "displayName": "Homebridge Tapo Alarm",
   "name": "homebridge-tapo-alarm",
-  "version": "4.2.0",
-  "description": "Homebridge integration for Tapo devices with H100 alarm-state reporting",
+  "version": "1.0.0",
+  "description": "Homebridge plugin for Tapo H100 alarm-state reporting and S200 button support",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -43,7 +43,11 @@
     "lighting",
     "tapo",
     "smart",
-    "Smart Home"
+    "Smart Home",
+    "alarm",
+    "security-system",
+    "h100",
+    "s200"
   ],
   "dependencies": {
     "async-lock": "^1.4.1",
