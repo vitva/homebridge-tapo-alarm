@@ -129,7 +129,9 @@ export default class HubAccessory extends TapoAccessory {
         );
         this.log.info(
           'H100 alarm state:',
-          alarmActive ? 'TRIGGERED' : 'cleared'
+          alarmActive ? 'TRIGGERED' : 'cleared',
+          '| source:',
+          deviceInfo.in_alarm_source ?? 'unknown'
         );
       }
     } catch (error: any) {

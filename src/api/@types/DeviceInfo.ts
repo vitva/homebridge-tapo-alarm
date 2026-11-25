@@ -11,6 +11,7 @@ interface DeviceInfo {
   oem_id: string;
   specs: string;
   in_alarm?: boolean;
+  in_alarm_source?: string;
   lang: string;
   device_on: boolean;
   on_time: number;
