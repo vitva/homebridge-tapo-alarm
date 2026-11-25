@@ -5,15 +5,17 @@ import {
 } from 'homebridge';
 
 import { AccessoryThisType } from '..';
+import { resolveAlarmState } from '../../../utils/alarmState';
 
 const characteristic: {
   get: CharacteristicGetHandler;
 } & AccessoryThisType = {
   get: async function (): Promise<Nullable<CharacteristicValue>> {
     const deviceInfo = await this.tpLink.getInfo();
-    if (typeof deviceInfo.in_alarm === 'boolean') {
-      this.lastAlarmState = deviceInfo.in_alarm;
-    }
+    this.lastAlarmState = resolveAlarmState(
+      deviceInfo.in_alarm,
+      this.lastAlarmState
+    );
 
     // Missing telemetry must not turn a previously detected alarm into clear.
     return this.lastAlarmState === true
