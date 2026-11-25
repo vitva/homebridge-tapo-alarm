@@ -11,12 +11,17 @@ export interface S200LogEntry {
   };
 }
 
-export interface S200CursorUpdate {
-  initialized: boolean;
-  lastTimestamp: number;
+export interface S200Event {
+  timestamp: number;
   event?: string;
   rotationDegrees?: number;
   rotationDirection?: 'left' | 'right';
+}
+
+export interface S200CursorUpdate {
+  initialized: boolean;
+  lastTimestamp: number;
+  events: S200Event[];
 }
 
 export function resolveAlarmState(
@@ -48,7 +53,7 @@ function getRotationDirection(
     return degrees > 0 ? 'right' : 'left';
   }
 
-  const normalized = event.toLowerCase().replace(/[_\s-]/g, '');
+  const normalized = event.toLowerCase().replace(/[_\\s-]/g, '');
   if (
     normalized.includes('counterclockwise') ||
     normalized.includes('anticlockwise') ||
@@ -71,52 +76,71 @@ function getRotationDirection(
   return undefined;
 }
 
+function parseEvent(entry: S200LogEntry): S200Event {
+  const event = entry.event ?? entry.click_type ?? entry.type;
+  const result: S200Event = {
+    timestamp: entry.timestamp as number
+  };
+
+  if (typeof event === 'string') {
+    result.event = event;
+    if (/rotation|rotate/i.test(event)) {
+      result.rotationDegrees = getRotationDegrees(entry);
+      result.rotationDirection = getRotationDirection(
+        event,
+        result.rotationDegrees
+      );
+    }
+  }
+
+  return result;
+}
+
+/**
+ * H100 returns the newest S200 log entries first. Process every entry newer
+ * than the cursor, in chronological order, instead of dropping all but logs[0].
+ * The startup call intentionally establishes a baseline and never replays
+ * events that were already present before Homebridge began polling.
+ */
 export function updateS200Cursor(
   logs: unknown,
   initialized: boolean,
   lastTimestamp: number
 ): S200CursorUpdate {
   if (!Array.isArray(logs)) {
-    return { initialized, lastTimestamp };
+    return { initialized, lastTimestamp, events: [] };
   }
 
-  const latest = logs[0] as S200LogEntry | undefined;
+  const validLogs = (logs as S200LogEntry[])
+    .filter(
+      (entry) =>
+        typeof entry?.timestamp === 'number' &&
+        Number.isFinite(entry.timestamp)
+    )
+    .sort((a, b) => (b.timestamp as number) - (a.timestamp as number));
 
   if (!initialized) {
     return {
       initialized: true,
-      lastTimestamp:
-        typeof latest?.timestamp === 'number' &&
-        Number.isFinite(latest.timestamp)
-          ? latest.timestamp
-          : 0
+      lastTimestamp: validLogs[0]?.timestamp ?? 0,
+      events: []
     };
   }
 
-  if (
-    typeof latest?.timestamp === 'number' &&
-    Number.isFinite(latest.timestamp) &&
-    lastTimestamp < latest.timestamp
-  ) {
-    const event = latest.event ?? latest.click_type ?? latest.type;
-    const result: S200CursorUpdate = {
-      initialized: true,
-      lastTimestamp: latest.timestamp
-    };
+  const newLogs = validLogs
+    .filter((entry) => (entry.timestamp as number) > lastTimestamp)
+    .sort((a, b) => (a.timestamp as number) - (b.timestamp as number));
 
-    if (typeof event === 'string') {
-      result.event = event;
-      if (/rotation|rotate/i.test(event)) {
-        result.rotationDegrees = getRotationDegrees(latest);
-        result.rotationDirection = getRotationDirection(
-          event,
-          result.rotationDegrees
-        );
-      }
-    }
-
-    return result;
+  if (newLogs.length === 0) {
+    return { initialized: true, lastTimestamp, events: [] };
   }
 
-  return { initialized, lastTimestamp };
+  return {
+    initialized: true,
+    lastTimestamp: Math.max(
+      lastTimestamp,
+      ...newLogs.map((entry) => entry.timestamp as number)
+    ),
+    events: newLogs.map(parseEvent)
+  };
 }
