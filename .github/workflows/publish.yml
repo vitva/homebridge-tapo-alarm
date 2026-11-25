@@ -1,6 +1,10 @@
 name: Publish to npm
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/publish.yml
   release:
     types: [published, edited]
   workflow_dispatch:
@@ -21,7 +25,7 @@ jobs:
       - name: Check out source
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+          ref: ${{ github.event.release.tag_name || inputs.tag || 'v1.0.0' }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -31,7 +35,7 @@ jobs:
 
       - name: Verify release tag matches package version
         env:
-          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag || 'v1.0.0' }}
         run: |
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           test "v${PACKAGE_VERSION}" = "${RELEASE_TAG}"
