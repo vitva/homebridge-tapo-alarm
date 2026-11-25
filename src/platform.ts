@@ -25,7 +25,6 @@ import ContactAccessory from './accessories/Contact';
 import MotionSensorAccessory from './accessories/MotionSensor';
 import NetworkDeviceLocator from './network/network-device-locator';
 import { NetworkAddressConfig } from './@types/network-address-config';
-import { NetworkAddressValidator } from './network/network-address-validator';
 import { TapoDevice } from './tapo/tapo-device';
 
 export default class Platform implements DynamicPlatformPlugin {

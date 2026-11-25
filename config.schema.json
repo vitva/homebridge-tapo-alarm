@@ -1,5 +1,5 @@
 {
-  "pluginAlias": "HomebridgeTapoSmarthome",
+  "pluginAlias": "HomebridgeTapoAlarm",
   "pluginType": "platform",
   "singular": true,
   "schema": {
@@ -7,7 +7,7 @@
     "properties": {
       "name": {
         "type": "string",
-        "default": "Tapo Smart Home"
+        "default": "Tapo Alarm"
       },
       "email": {
         "type": "string",
@@ -28,15 +28,36 @@
               "type": "string",
               "default": "MAC",
               "oneOf": [
-                { "title": "IP Address", "enum": ["IP"], "description": "Set IP only if it's staticly assigned." },
-                { "title": "MAC Address", "enum": ["MAC"], "description": "MAC address is the default and will be used to find the Tapo device's IP Address." }
+                {
+                  "title": "IP Address",
+                  "enum": [
+                    "IP"
+                  ],
+                  "description": "Set IP only if it's staticly assigned."
+                },
+                {
+                  "title": "MAC Address",
+                  "enum": [
+                    "MAC"
+                  ],
+                  "description": "MAC address is the default and will be used to find the Tapo device's IP Address."
+                }
               ]
             }
           },
-          "required": ["value", "type"]
+          "required": [
+            "value",
+            "type"
+          ]
         }
       }
     },
-    "required": ["platform", "name", "email", "password", "addresses"]
+    "required": [
+      "platform",
+      "name",
+      "email",
+      "password",
+      "addresses"
+    ]
   }
 }

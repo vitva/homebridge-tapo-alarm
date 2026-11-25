@@ -8,7 +8,6 @@ import LegacyAPI from './LegacyAPI';
 import commands from './commands';
 import KlapAPI from './KlapAPI';
 import API from './@types/API';
-import { NetworkDevice } from '../@types/network-device';
 import { TapoDevice } from '../tapo/tapo-device';
 
 export interface HandshakeData {
