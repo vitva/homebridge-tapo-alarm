@@ -51,7 +51,6 @@ export default class Platform implements DynamicPlatformPlugin {
     public readonly api: API
   ) {
 
-    this.deviceLocator = new NetworkDeviceLocator(log, this.api.hap.uuid.generate);
     this.Service = this.api.hap.Service;
     this.Characteristic = this.api.hap.Characteristic;
     
@@ -103,14 +102,11 @@ export default class Platform implements DynamicPlatformPlugin {
         !Array.isArray(addresses) ||
         addresses.length <= 0
       ) {
-        if (this.accessories.length > 0) {
-          this.api.unregisterPlatformAccessories(
-            PLUGIN_NAME,
-            PLATFORM_NAME,
-            this.accessories
-          );
-        }
-
+        this.log.warn(
+          'Tapo account credentials and at least one H100 address are required. Keeping cached accessories until configuration is complete.'
+        );
+        // An incomplete configuration is not evidence that cached devices
+        // were removed. Preserve them and wait for a valid configuration.
         discoveryComplete = true;
         return;
       }
