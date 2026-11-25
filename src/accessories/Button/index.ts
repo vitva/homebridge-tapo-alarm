@@ -20,7 +20,7 @@ export type AccessoryThisType = ThisType<{
 
 export default class ButtonAccessory extends TapoAccessory {
   private interval?: NodeJS.Timeout;
-  private lastEventUpdate = 0;
+  private lastEventId = 0;
   private checking = false;
   private stopped = false;
   private eventCursorInitialized = false;
@@ -161,7 +161,7 @@ export default class ButtonAccessory extends TapoAccessory {
       const init = await this.hub.getChildLogs(this.deviceInfo.device_id);
       if (Array.isArray(init?.logs)) {
         const cursor = updateS200Cursor(init.logs, false, 0);
-        this.lastEventUpdate = cursor.lastTimestamp;
+        this.lastEventId = cursor.lastEventId;
         this.eventCursorInitialized = cursor.initialized;
       }
     } catch (error) {
@@ -194,10 +194,10 @@ export default class ButtonAccessory extends TapoAccessory {
       const cursor = updateS200Cursor(
         response?.logs,
         this.eventCursorInitialized,
-        this.lastEventUpdate
+        this.lastEventId
       );
       this.eventCursorInitialized = cursor.initialized;
-      this.lastEventUpdate = cursor.lastTimestamp;
+      this.lastEventId = cursor.lastEventId;
 
       // Emit every unseen event in chronological order. A single poll can
       // contain multiple clicks/rotations, and none should be collapsed.
