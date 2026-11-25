@@ -9,6 +9,7 @@ import HubAccessory, { HubContext } from '../Hub';
 import TapoAccessory from '../../@types/TapoAccessory';
 import Context from '../../@types/Context';
 import Platform from '../../platform';
+import { updateS200Cursor } from '../../utils/alarmState';
 
 import StatusLowBattery from './characteristics/StatusLowBattery';
 
@@ -87,8 +88,9 @@ export default class ButtonAccessory extends TapoAccessory {
     try {
       const init = await this.hub.getChildLogs(this.deviceInfo.device_id);
       if (Array.isArray(init?.logs)) {
-        this.lastEventUpdate = init.logs[0]?.timestamp ?? 0;
-        this.eventCursorInitialized = true;
+        const cursor = updateS200Cursor(init.logs, false, 0);
+        this.lastEventUpdate = cursor.lastTimestamp;
+        this.eventCursorInitialized = cursor.initialized;
       }
     } catch (error) {
       this.log.warn('Unable to initialize S200 event cursor:', error);
@@ -116,36 +118,29 @@ export default class ButtonAccessory extends TapoAccessory {
     try {
       const response = await this.hub.getChildLogs(this.deviceInfo.device_id);
       // Ignore an in-flight response if Homebridge shut down while awaiting it.
-      if (this.stopped || !Array.isArray(response?.logs)) {
+      if (this.stopped) {
         return;
       }
 
-      const lastEvent = response.logs[0];
-      if (!this.eventCursorInitialized) {
-        // If startup could not read the log, establish a baseline first.
-        // This avoids reporting an old button event as a new press.
-        this.lastEventUpdate = lastEvent?.timestamp ?? 0;
-        this.eventCursorInitialized = true;
-        return;
-      }
+      const cursor = updateS200Cursor(
+        response?.logs,
+        this.eventCursorInitialized,
+        this.lastEventUpdate
+      );
+      this.eventCursorInitialized = cursor.initialized;
+      this.lastEventUpdate = cursor.lastTimestamp;
 
-      if (
-        lastEvent?.timestamp !== undefined &&
-        this.lastEventUpdate < lastEvent.timestamp
-      ) {
-        this.lastEventUpdate = lastEvent.timestamp;
-        switch (lastEvent.event ?? '') {
-          case 'singleClick':
-            characteristic.updateValue(
-              this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
-            );
-            break;
-          case 'doubleClick':
-            characteristic.updateValue(
-              this.platform.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS
-            );
-            break;
-        }
+      switch (cursor.event ?? '') {
+        case 'singleClick':
+          characteristic.updateValue(
+            this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+          );
+          break;
+        case 'doubleClick':
+          characteristic.updateValue(
+            this.platform.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS
+          );
+          break;
       }
     } catch (error) {
       this.log.warn('Failed to check S200 button events:', error);
