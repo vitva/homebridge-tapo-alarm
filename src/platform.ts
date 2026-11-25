@@ -37,6 +37,7 @@ export default class Platform implements DynamicPlatformPlugin {
   public readonly loadedChildUUIDs: Record<string, true> = {};
   public readonly registeredDevices: TapoAccessory[] = [];
   public readonly hubs: HubAccessory[] = [];
+  private readonly loadedParentUUIDs: Record<string, true> = {};
 
   private readonly deviceRetry: { [key: string]: number; } = {};
   private discoveryInFlight = false;
@@ -139,6 +140,13 @@ export default class Platform implements DynamicPlatformPlugin {
         return;
       }
 
+      // Track the actual accessory UUIDs resolved from the configured addresses.
+      // IP addresses must not be converted directly to HomeKit UUIDs: discovery
+      // resolves both IP and MAC entries to the device MAC before UUID creation.
+      Object.keys(this.loadedParentUUIDs).forEach((uuid) => {
+        delete this.loadedParentUUIDs[uuid];
+      });
+
       const parentResults = await Promise.all(
         addresses.map((address) => this.loadDevice(address, email, password))
       );
@@ -219,6 +227,7 @@ export default class Platform implements DynamicPlatformPlugin {
     // A previous discovery pass may already have initialized this device.
     // Reuse it rather than creating duplicate Homebridge services or pollers.
     if (this.registeredDevices.some((device) => device.UUID === uuid)) {
+      this.loadedParentUUIDs[uuid] = true;
       return true;
     }
 
@@ -297,6 +306,7 @@ export default class Platform implements DynamicPlatformPlugin {
         }
 
         this.registeredDevices.push(tapoAccessory);
+        this.loadedParentUUIDs[uuid] = true;
         if (this.isDeviceHidden(uuid)) {
           this.unregisterHiddenAccessory(existingAccessory);
         }
@@ -329,6 +339,7 @@ export default class Platform implements DynamicPlatformPlugin {
       }
 
       this.registeredDevices.push(registeredAccessory);
+      this.loadedParentUUIDs[uuid] = true;
 
       if (this.isDeviceHidden(uuid)) {
         this.log.info('Device is hidden from HomeKit:', deviceName);
@@ -472,24 +483,15 @@ export default class Platform implements DynamicPlatformPlugin {
   }
 
   private checkOldDevices() {
-    const addressesByUUID: Record<string, string> = (
-      (this.config?.addresses) || []
-    ).reduce(
-      (acc, address) => ({
-        ...acc,
-        [this.api.hap.uuid.generate(address.value)]: address.value
-      }),
-      {}
-    );
-
     this.accessories.map((accessory) => {
+      const parentIsLoaded = !!this.loadedParentUUIDs[
+        accessory.context.child
+          ? accessory.context.parent
+          : accessory.UUID.toString()
+      ];
       const deleteDevice =
-        (!accessory.context.child &&
-          !addressesByUUID[accessory.UUID.toString()]) ||
+        !parentIsLoaded ||
         (accessory.context.child &&
-          !addressesByUUID[accessory.context.parent]) ||
-        (accessory.context.child &&
-          addressesByUUID[accessory.context.parent] &&
           !this.loadedChildUUIDs[accessory.UUID.toString()]);
 
       if (deleteDevice) {
