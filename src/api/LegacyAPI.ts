@@ -27,8 +27,12 @@ export default class LegacyAPI extends API {
       true
     );
 
-    this.log.debug('[Login] BE AWARE, SENSITIVE DATA!!', JSON.stringify(body));
+    // Never write authentication responses or tokens to the Homebridge log.
     this.loginToken = body?.result?.token;
+
+    if (!this.loginToken) {
+      throw new Error('Login response did not include an authentication token');
+    }
   }
 
   public async setup() {
