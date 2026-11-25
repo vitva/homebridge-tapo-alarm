@@ -35,6 +35,36 @@ export function resolveAlarmState(
     : lastKnownState;
 }
 
+export type S200EventAction =
+  | 'single-click'
+  | 'double-click'
+  | 'rotation-right'
+  | 'rotation-left';
+
+/** Map parsed H100 trigger-log events to the HomeKit event they should emit. */
+export function resolveS200EventAction(
+  event: S200Event
+): S200EventAction | undefined {
+  if (event.rotationDirection === 'right') {
+    return 'rotation-right';
+  }
+
+  if (event.rotationDirection === 'left') {
+    return 'rotation-left';
+  }
+
+  const normalized = (event.event ?? '').toLowerCase().replace(/[_\\s-]/g, '');
+  if (normalized === 'singleclick') {
+    return 'single-click';
+  }
+
+  if (normalized === 'doubleclick') {
+    return 'double-click';
+  }
+
+  return undefined;
+}
+
 function getRotationDegrees(entry: S200LogEntry): number | undefined {
   const value =
     entry.rotation_degrees ??
