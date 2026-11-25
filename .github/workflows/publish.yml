@@ -2,7 +2,7 @@ name: Publish to npm
 
 on:
   release:
-    types: [published, edited]
+    types: [published]
   workflow_dispatch:
     inputs:
       tag:
@@ -10,18 +10,9 @@ on:
         required: true
         default: v1.0.0
         type: string
-      mode:
-        description: Use stage only for the one-time first publication
-        required: true
-        default: stage
-        type: choice
-        options:
-          - stage
-          - oidc
 
 permissions:
   contents: read
-  id-token: write
 
 concurrency:
   group: npm-publish
@@ -30,8 +21,6 @@ concurrency:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    environment:
-      name: NPM
     env:
       ESLINT_USE_FLAT_CONFIG: "false"
     steps:
@@ -43,11 +32,11 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
+          registry-url: https://registry.npmjs.org
           package-manager-cache: false
-          registry-url: https://registry.npmjs.org/
 
-      - name: Use npm with trusted publishing support
+      - name: Use npm
         run: npm install --global npm@11.15.0
 
       - name: Verify release tag matches package version
@@ -60,12 +49,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Publish initial version using npm token
-        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'stage'
-        run: npm publish --provenance --access public
+      - name: Publish package
+        run: npm publish --access public --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Publish updates through npm Trusted Publishing (OIDC)
-        if: github.event_name == 'release' || inputs.mode == 'oidc'
-        run: npm publish --provenance --access public --tag latest
