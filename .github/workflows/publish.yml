@@ -51,7 +51,7 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Publish package
-        run: npm publish --access public --tag latest
+      - name: Stage package for npm review
+        run: npm stage publish --access public --tag latest
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
