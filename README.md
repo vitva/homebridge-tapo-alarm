@@ -52,11 +52,8 @@ You can add multiple devices bulbs with a single platform.
       "password": "tplink-account-password",
       "addresses": [
         {
-          "name": "Tapo device",
-          "address": {
-            "value": "192.168.1.100",
-            "type": "IP"
-          }
+          "value": "192.168.1.100",
+          "type": "IP"
         }
       ]
     }
