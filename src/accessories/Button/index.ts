@@ -22,6 +22,7 @@ export default class ButtonAccessory extends TapoAccessory {
   private lastEventUpdate = 0;
   private checking = false;
   private stopped = false;
+  private eventCursorInitialized = false;
 
   public get UUID() {
     return this.accessory.UUID.toString();
@@ -85,7 +86,10 @@ export default class ButtonAccessory extends TapoAccessory {
   private async setup(characteristic: CharInstance) {
     try {
       const init = await this.hub.getChildLogs(this.deviceInfo.device_id);
-      this.lastEventUpdate = init?.logs?.[0]?.timestamp ?? 0;
+      if (Array.isArray(init?.logs)) {
+        this.lastEventUpdate = init.logs[0]?.timestamp ?? 0;
+        this.eventCursorInitialized = true;
+      }
     } catch (error) {
       this.log.warn('Unable to initialize S200 event cursor:', error);
     }
@@ -111,7 +115,18 @@ export default class ButtonAccessory extends TapoAccessory {
     this.checking = true;
     try {
       const response = await this.hub.getChildLogs(this.deviceInfo.device_id);
-      const lastEvent = response?.logs?.[0];
+      if (!Array.isArray(response?.logs)) {
+        return;
+      }
+
+      const lastEvent = response.logs[0];
+      if (!this.eventCursorInitialized) {
+        // If startup could not read the log, establish a baseline first.
+        // This avoids reporting an old button event as a new press.
+        this.lastEventUpdate = lastEvent?.timestamp ?? 0;
+        this.eventCursorInitialized = true;
+        return;
+      }
 
       if (
         lastEvent?.timestamp !== undefined &&
