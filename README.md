@@ -67,6 +67,16 @@ You can add multiple devices bulbs with a single platform.
 }
 ```
 
+## Development
+
+Run the automated alarm-state and S200 event tests with:
+
+```bash
+npm test
+```
+
+The test suite covers missing alarm telemetry, alarm-state transitions, S200 startup baselines, repeated events, and invalid timestamps. GitHub Actions runs the tests on Node.js 20 and 22.
+
 ## Credits
 
 - [Kevin Hillinger](https://github.com/kevinhillinger) - upstream plugin maintainer
