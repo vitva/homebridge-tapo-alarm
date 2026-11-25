@@ -11,7 +11,7 @@ function resolveSpecifier(file, specifier) {
     return specifier + '.js';
   }
   if (fs.existsSync(path.join(target, 'index.js'))) {
-    return path.posix.join(specifier.replace(/\\/g, '/'), 'index.js');
+    return specifier.replace(/\\/g, '/') + '/index.js';
   }
 
   throw new Error(\`Cannot resolve ESM import "\${specifier}" from \${path.relative(root, file)}\`);
