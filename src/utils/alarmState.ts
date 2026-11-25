@@ -1,4 +1,5 @@
 export interface S200LogEntry {
+  id?: number;
   timestamp?: number;
   event?: string;
   click_type?: string;
@@ -12,7 +13,8 @@ export interface S200LogEntry {
 }
 
 export interface S200Event {
-  timestamp: number;
+  id: number;
+  timestamp?: number;
   event?: string;
   rotationDegrees?: number;
   rotationDirection?: 'left' | 'right';
@@ -20,7 +22,7 @@ export interface S200Event {
 
 export interface S200CursorUpdate {
   initialized: boolean;
-  lastTimestamp: number;
+  lastEventId: number;
   events: S200Event[];
 }
 
@@ -76,10 +78,23 @@ function getRotationDirection(
   return undefined;
 }
 
-function parseEvent(entry: S200LogEntry): S200Event {
+function getEventId(entry: S200LogEntry): number | undefined {
+  if (typeof entry.id === 'number' && Number.isFinite(entry.id)) {
+    return entry.id;
+  }
+
+  // Older firmware/library responses may omit the log ID. Timestamp is a
+  // compatibility fallback, but event IDs are preferred when available.
+  return typeof entry.timestamp === 'number' && Number.isFinite(entry.timestamp)
+    ? entry.timestamp
+    : undefined;
+}
+
+function parseEvent(entry: S200LogEntry, id: number): S200Event {
   const event = entry.event ?? entry.click_type ?? entry.type;
   const result: S200Event = {
-    timestamp: entry.timestamp as number
+    id,
+    timestamp: entry.timestamp
   };
 
   if (typeof event === 'string') {
@@ -97,50 +112,49 @@ function parseEvent(entry: S200LogEntry): S200Event {
 }
 
 /**
- * H100 returns the newest S200 log entries first. Process every entry newer
- * than the cursor, in chronological order, instead of dropping all but logs[0].
- * The startup call intentionally establishes a baseline and never replays
- * events that were already present before Homebridge began polling.
+ * H100 returns the newest S200 trigger log entries first. The unique log ID
+ * is the cursor, so events sharing a timestamp are still delivered separately.
+ * Startup establishes a baseline and intentionally does not replay old events.
  */
 export function updateS200Cursor(
   logs: unknown,
   initialized: boolean,
-  lastTimestamp: number
+  lastEventId: number
 ): S200CursorUpdate {
   if (!Array.isArray(logs)) {
-    return { initialized, lastTimestamp, events: [] };
+    return { initialized, lastEventId, events: [] };
   }
 
   const validLogs = (logs as S200LogEntry[])
+    .map((entry) => ({ entry, id: getEventId(entry) }))
     .filter(
-      (entry) =>
-        typeof entry?.timestamp === 'number' &&
-        Number.isFinite(entry.timestamp)
+      (item): item is { entry: S200LogEntry; id: number } =>
+        item.id !== undefined
     )
-    .sort((a, b) => (b.timestamp as number) - (a.timestamp as number));
+    .sort((a, b) => b.id - a.id);
 
   if (!initialized) {
     return {
       initialized: true,
-      lastTimestamp: validLogs[0]?.timestamp ?? 0,
+      lastEventId: validLogs[0]?.id ?? 0,
       events: []
     };
   }
 
   const newLogs = validLogs
-    .filter((entry) => (entry.timestamp as number) > lastTimestamp)
-    .sort((a, b) => (a.timestamp as number) - (b.timestamp as number));
+    .filter((item) => item.id > lastEventId)
+    .sort((a, b) => a.id - b.id);
 
   if (newLogs.length === 0) {
-    return { initialized: true, lastTimestamp, events: [] };
+    return { initialized: true, lastEventId, events: [] };
   }
 
   return {
     initialized: true,
-    lastTimestamp: Math.max(
-      lastTimestamp,
-      ...newLogs.map((entry) => entry.timestamp as number)
+    lastEventId: Math.max(
+      lastEventId,
+      ...newLogs.map((item) => item.id)
     ),
-    events: newLogs.map(parseEvent)
+    events: newLogs.map(({ entry, id }) => parseEvent(entry, id))
   };
 }
