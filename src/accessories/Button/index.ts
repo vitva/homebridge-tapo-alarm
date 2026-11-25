@@ -108,14 +108,15 @@ export default class ButtonAccessory extends TapoAccessory {
   }
 
   private async checkStatus(characteristic: CharInstance) {
-    if (this.checking) {
+    if (this.stopped || this.checking) {
       return;
     }
 
     this.checking = true;
     try {
       const response = await this.hub.getChildLogs(this.deviceInfo.device_id);
-      if (!Array.isArray(response?.logs)) {
+      // Ignore an in-flight response if Homebridge shut down while awaiting it.
+      if (this.stopped || !Array.isArray(response?.logs)) {
         return;
       }
 
