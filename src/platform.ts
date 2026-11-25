@@ -185,7 +185,7 @@ export default class Platform implements DynamicPlatformPlugin {
       this.deviceRetry[uuid] = this.TIMEOUT_TRIES;
     } else if (this.deviceRetry[uuid] <= 0) {
       this.log.info('Retry timeout:', networkDevice.ip, '|', networkDevice.mac);
-      return;
+      return false;
     } else {
       this.log.info('Retry to connect in 10s', ':', networkDevice.ip);
       await delay(10 * 1000);
@@ -265,7 +265,7 @@ export default class Platform implements DynamicPlatformPlugin {
           TapoAccessory.getType(deviceInfo),
           deviceInfo?.type
         );
-        return;
+        return false;
       }
 
       this.registeredDevices.push(registeredAccessory);
