@@ -15,8 +15,6 @@ import TargetState from './characteristics/TargetState';
 
 export type AccessoryThisType = ThisType<{
   readonly Characteristic: typeof import('homebridge').Characteristic;
-  readonly setAlarmEnabled: (value: boolean) => Promise<void>;
-  readonly alarmEnabled: boolean;
   readonly tpLink: TPLink;
   readonly log: Logger;
   readonly mac: string;
@@ -33,8 +31,9 @@ export default class HubAccessory extends TapoAccessory {
 
   private readonly currentChar: CharInstance;
   private readonly targetChar: CharInstance;
-
-  private prevTarget = false;
+  private alarmPollTimer?: NodeJS.Timeout;
+  private alarmPollInFlight = false;
+  private lastAlarmState?: boolean;
 
   public get UUID() {
     return this.accessory.UUID.toString();
@@ -89,46 +88,64 @@ export default class HubAccessory extends TapoAccessory {
         validValues: [
           this.Characteristic.SecuritySystemTargetState.DISARM,
           this.Characteristic.SecuritySystemTargetState.AWAY_ARM
-        ]
+        ],
+        // HomeKit may read the target state, but this plugin does not control
+        // Tapo arming or siren playback.
+        perms: ['pr', 'ev'] as any
       })
-      .onGet(TargetState.get.bind(this))
-      .onSet(TargetState.set.bind(this));
-  }
+      .onGet(TargetState.get.bind(this));
 
-  private async setAlarmEnabled(value: boolean) {
-    if (this.prevTarget === value) {
-      this.currentChar.updateValue(
-        this.prevTarget
-          ? this.Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED
-          : this.Characteristic.SecuritySystemCurrentState.DISARMED
-      );
-      this.targetChar.updateValue(
-        this.prevTarget
-          ? this.Characteristic.SecuritySystemTargetState.AWAY_ARM
-          : this.Characteristic.SecuritySystemTargetState.DISARM
-      );
-      return;
-    }
-
-    this.prevTarget = value;
-
-    if (value) {
-      await this.tpLink.sendCommand('startAlarm');
-      this.currentChar.updateValue(
-        this.Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED
-      );
-      this.targetChar.updateValue(
-        this.Characteristic.SecuritySystemTargetState.AWAY_ARM
-      );
-      return;
-    }
-
-    await this.tpLink.sendCommand('stopAlarm');
-    this.currentChar.updateValue(
-      this.Characteristic.SecuritySystemCurrentState.DISARMED
-    );
     this.targetChar.updateValue(
       this.Characteristic.SecuritySystemTargetState.DISARM
     );
+
+    this.startAlarmStatePolling();
+    this.platform.api.on('shutdown', () => this.cleanup());
+  }
+
+  private startAlarmStatePolling() {
+    void this.pollAlarmState();
+    this.alarmPollTimer = setInterval(() => {
+      void this.pollAlarmState();
+    }, 1000);
+  }
+
+  private async pollAlarmState() {
+    if (this.alarmPollInFlight) {
+      return;
+    }
+
+    this.alarmPollInFlight = true;
+    try {
+      const deviceInfo = await this.tpLink.getInfo();
+      const alarmActive = deviceInfo.in_alarm === true;
+
+      if (this.lastAlarmState !== alarmActive) {
+        this.lastAlarmState = alarmActive;
+        this.currentChar.updateValue(
+          alarmActive
+            ? this.Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED
+            : this.Characteristic.SecuritySystemCurrentState.DISARMED
+        );
+        this.log.info(
+          'H100 alarm state:',
+          alarmActive ? 'TRIGGERED' : 'cleared'
+        );
+      }
+    } catch (error: any) {
+      this.log.debug(
+        'Unable to poll H100 alarm state:',
+        error?.message ?? error
+      );
+    } finally {
+      this.alarmPollInFlight = false;
+    }
+  }
+
+  public cleanup() {
+    if (this.alarmPollTimer) {
+      clearInterval(this.alarmPollTimer);
+      this.alarmPollTimer = undefined;
+    }
   }
 }

@@ -1,11 +1,14 @@
-import { PlatformAccessory, Logger } from 'homebridge';
+import {
+  PlatformAccessory,
+  Logger,
+  Characteristic as CharInstance
+} from 'homebridge';
 
 import { ChildInfo } from '../../api/@types/ChildListInfo';
 import HubAccessory, { HubContext } from '../Hub';
 import TapoAccessory from '../../@types/TapoAccessory';
 import Context from '../../@types/Context';
 import Platform from '../../platform';
-import delay from '../../utils/delay';
 
 import StatusLowBattery from './characteristics/StatusLowBattery';
 
@@ -17,6 +20,7 @@ export type AccessoryThisType = ThisType<{
 export default class ButtonAccessory extends TapoAccessory {
   private interval?: NodeJS.Timeout;
   private lastEventUpdate = 0;
+  private checking = false;
 
   public get UUID() {
     return this.accessory.UUID.toString();
@@ -73,50 +77,65 @@ export default class ButtonAccessory extends TapoAccessory {
       service.addCharacteristic(this.platform.Characteristic.StatusLowBattery)
     ).onGet(StatusLowBattery.get.bind(this));
 
-    const checkStatus = async () => {
-      try {
-        const response = await this.hub.getChildLogs(this.deviceInfo.device_id);
-        if (!response) {
-          this.log.warn('Failed to check for updates, delaying 500ms');
-          await delay(500);
-        }
+    void this.setup(characteristic);
+  }
 
-        const lastEvent = response?.logs?.[0];
-        if (this.lastEventUpdate < lastEvent?.timestamp) {
-          this.lastEventUpdate = lastEvent?.timestamp ?? 0;
-          switch (lastEvent?.event ?? '') {
-            case 'singleClick':
-              characteristic.updateValue(
-                this.platform.Characteristic.ProgrammableSwitchEvent
-                  .SINGLE_PRESS
-              );
-              break;
-            case 'doubleClick':
-              characteristic.updateValue(
-                this.platform.Characteristic.ProgrammableSwitchEvent
-                  .DOUBLE_PRESS
-              );
-              break;
-          }
+  private async setup(characteristic: CharInstance) {
+    try {
+      const init = await this.hub.getChildLogs(this.deviceInfo.device_id);
+      this.lastEventUpdate = init?.logs?.[0]?.timestamp ?? 0;
+    } catch (error) {
+      this.log.warn('Unable to initialize S200 event cursor:', error);
+    }
+
+    // The upstream implementation immediately recursed after every successful
+    // request. Use a bounded interval to avoid continuously polling the H100.
+    this.interval = setInterval(() => {
+      void this.checkStatus(characteristic);
+    }, 1000);
+
+    this.platform.api.on('shutdown', () => this.cleanup());
+  }
+
+  private async checkStatus(characteristic: CharInstance) {
+    if (this.checking) {
+      return;
+    }
+
+    this.checking = true;
+    try {
+      const response = await this.hub.getChildLogs(this.deviceInfo.device_id);
+      const lastEvent = response?.logs?.[0];
+
+      if (
+        lastEvent?.timestamp !== undefined &&
+        this.lastEventUpdate < lastEvent.timestamp
+      ) {
+        this.lastEventUpdate = lastEvent.timestamp;
+        switch (lastEvent.event ?? '') {
+          case 'singleClick':
+            characteristic.updateValue(
+              this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+            );
+            break;
+          case 'doubleClick':
+            characteristic.updateValue(
+              this.platform.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS
+            );
+            break;
         }
-      } catch (error) {
-        this.log.error('Failed to check for updates', error);
-        await delay(500);
       }
-
-      checkStatus();
-    };
-
-    this.setup(() => checkStatus());
+    } catch (error) {
+      this.log.warn('Failed to check S200 button events:', error);
+    } finally {
+      this.checking = false;
+    }
   }
 
-  cleanup() {
-    clearInterval(this.interval!);
-  }
-
-  private async setup(callback: () => void) {
-    const init = await this.hub.getChildLogs(this.deviceInfo.device_id);
-    this.lastEventUpdate = init?.logs?.[0].timestamp ?? 0;
-    callback();
+  public cleanup() {
+    if (this.interval) {
+      clearInterval(this.interval);
+      this.interval = undefined;
+    }
   }
 }

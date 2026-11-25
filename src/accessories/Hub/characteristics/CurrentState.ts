@@ -11,7 +11,7 @@ const characteristic: {
 } & AccessoryThisType = {
   get: async function (): Promise<Nullable<CharacteristicValue>> {
     const deviceInfo = await this.tpLink.getInfo();
-    return deviceInfo.in_alarm
+    return deviceInfo.in_alarm === true
       ? this.Characteristic.SecuritySystemCurrentState.ALARM_TRIGGERED
       : this.Characteristic.SecuritySystemCurrentState.DISARMED;
   }
