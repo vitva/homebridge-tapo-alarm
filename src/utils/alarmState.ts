@@ -53,7 +53,7 @@ export function resolveS200EventAction(
     return 'rotation-left';
   }
 
-  const normalized = (event.event ?? '').toLowerCase().replace(/[_\\s-]/g, '');
+  const normalized = (event.event ?? '').toLowerCase().replace(/[_\s-]/g, '');
   if (normalized === 'singleclick') {
     return 'single-click';
   }
