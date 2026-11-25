@@ -14,7 +14,7 @@ function resolveSpecifier(file, specifier) {
     return specifier.replace(/\\/g, '/') + '/index.js';
   }
 
-  throw new Error(\`Cannot resolve ESM import "\${specifier}" from \${path.relative(root, file)}\`);
+  throw new Error('Cannot resolve ESM import "' + specifier + '" from ' + path.relative(root, file));
 }
 
 function visit(directory) {
