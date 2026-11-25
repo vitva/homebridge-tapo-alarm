@@ -52,6 +52,16 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
+      - name: Verify npm token directly against registry
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          STATUS="$(curl --silent --output /dev/null --write-out '%{http_code}' --header "Authorization: Bearer ${NPM_TOKEN}" https://registry.npmjs.org/-/whoami)"
+          echo "Direct registry whoami HTTP status: ${STATUS}"
+          if [ "${STATUS}" != "200" ]; then
+            echo "The registry rejects the secret before npm CLI configuration is involved."
+          fi
+
       - name: Check npm token fingerprint and package access
         run: |
           node -e "const t=process.env.NODE_AUTH_TOKEN || ''; console.log('NPM token length:', t.length); console.log('NPM token preview:', t.slice(0,4) + '…' + t.slice(-4));"
