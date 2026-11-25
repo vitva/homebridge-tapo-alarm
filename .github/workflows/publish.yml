@@ -32,6 +32,8 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: NPM
+    env:
+      ESLINT_USE_FLAT_CONFIG: "false"
     steps:
       - name: Check out source
         uses: actions/checkout@v5
@@ -62,10 +64,7 @@ jobs:
         run: npm stage publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          ESLINT_USE_FLAT_CONFIG: "false"
 
       - name: Publish through npm Trusted Publishing (OIDC)
         if: github.event_name == 'release' || inputs.mode == 'oidc'
         run: npm publish --access public --tag latest
-        env:
-          ESLINT_USE_FLAT_CONFIG: "false"
