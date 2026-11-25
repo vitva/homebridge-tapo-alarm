@@ -85,6 +85,24 @@ export default class Platform implements DynamicPlatformPlugin {
     this.accessories.push(accessory as PlatformAccessory<Context | HubContext>);
   }
 
+  private isDeviceHidden(uuid: string): boolean {
+    const hiddenDevices = Array.isArray(this.config?.hiddenDevices)
+      ? this.config.hiddenDevices
+      : [];
+    return hiddenDevices.some((item: any) =>
+      typeof item === 'string' ? item === uuid : item?.uuid === uuid
+    );
+  }
+
+  private unregisterHiddenAccessory(accessory: PlatformAccessory<Context | HubContext>) {
+    this.log.info('Hiding Tapo device from HomeKit:', accessory.displayName);
+    this.api.unregisterPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [accessory]);
+    const index = this.accessories.indexOf(accessory);
+    if (index !== -1) {
+      this.accessories.splice(index, 1);
+    }
+  }
+
   private async discoverDevices() {
     if (this.discoveryInFlight) {
       return;
@@ -246,9 +264,13 @@ export default class Platform implements DynamicPlatformPlugin {
           existingAccessory.displayName
         );
         existingAccessory.context = {
+          ...existingAccessory.context,
           name: deviceName,
           tpLink,
-          child: false
+          child: false,
+          deviceId: networkDevice.mac,
+          model: deviceInfo.model,
+          deviceType: deviceInfo.type
         };
 
         const tapoAccessory = this.createTapoAccessory(existingAccessory, deviceInfo);
@@ -264,6 +286,9 @@ export default class Platform implements DynamicPlatformPlugin {
         }
 
         this.registeredDevices.push(tapoAccessory);
+        if (this.isDeviceHidden(uuid)) {
+          this.unregisterHiddenAccessory(existingAccessory);
+        }
         return true;
       }
 
@@ -275,7 +300,10 @@ export default class Platform implements DynamicPlatformPlugin {
       accessory.context = {
         name: deviceName,
         tpLink,
-        child: false
+        child: false,
+        deviceId: networkDevice.mac,
+        model: deviceInfo.model,
+        deviceType: deviceInfo.type
       };
 
       const registeredAccessory = this.createTapoAccessory(accessory, deviceInfo);
@@ -291,9 +319,13 @@ export default class Platform implements DynamicPlatformPlugin {
 
       this.registeredDevices.push(registeredAccessory);
 
-      this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
-        accessory
-      ]);
+      if (this.isDeviceHidden(uuid)) {
+        this.log.info('Device is hidden from HomeKit:', deviceName);
+      } else {
+        this.api.registerPlatformAccessories(PLUGIN_NAME, PLATFORM_NAME, [
+          accessory
+        ]);
+      }
       return true;
     } catch (err: any) {
       this.log.error('Failed to get info about:', address, '|', err.message);
@@ -308,6 +340,17 @@ export default class Platform implements DynamicPlatformPlugin {
     parent: HubAccessory
   ) {
     const uuid = this.api.hap.uuid.generate(id);
+    if (this.isDeviceHidden(uuid)) {
+      const hiddenAccessory = this.accessories.find(
+        (accessory) => accessory.UUID === uuid
+      );
+      if (hiddenAccessory) {
+        this.unregisterHiddenAccessory(hiddenAccessory);
+      }
+      this.log.debug('Child device is hidden from HomeKit:', id);
+      return true;
+    }
+
     if (this.registeredDevices.some((device) => device.UUID === uuid)) {
       return true;
     }
@@ -345,9 +388,13 @@ export default class Platform implements DynamicPlatformPlugin {
           existingAccessory.displayName
         );
         existingAccessory.context = {
+          ...existingAccessory.context,
           name: deviceName,
           child: true,
-          parent: parent.UUID
+          parent: parent.UUID,
+          deviceId: id,
+          model: deviceInfo.model,
+          deviceType: deviceInfo.type
         };
 
         const registeredAccessory = this.registerChild(
@@ -378,7 +425,10 @@ export default class Platform implements DynamicPlatformPlugin {
       accessory.context = {
         name: deviceName,
         child: true,
-        parent: parent.UUID
+        parent: parent.UUID,
+        deviceId: id,
+        model: deviceInfo.model,
+        deviceType: deviceInfo.type
       };
 
       const registeredAccessory = this.registerChild(
