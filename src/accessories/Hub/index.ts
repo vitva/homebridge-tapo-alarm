@@ -86,15 +86,18 @@ export default class HubAccessory extends TapoAccessory {
     this.targetChar = service
       .getCharacteristic(this.Characteristic.SecuritySystemTargetState)
       .setProps({
-        validValues: [
-          this.Characteristic.SecuritySystemTargetState.DISARM,
-          this.Characteristic.SecuritySystemTargetState.AWAY_ARM
-        ],
-        // HomeKit may read the target state, but this plugin does not control
-        // Tapo arming or siren playback.
-        perms: ['pr', 'ev'] as any
+        // Keep the required HomeKit target characteristic, but expose only
+        // DISARM so HomeKit cannot arm the Tapo system.
+        validValues: [this.Characteristic.SecuritySystemTargetState.DISARM],
+        perms: ['pr', 'pw', 'ev']
       })
-      .onGet(TargetState.get.bind(this));
+      .onGet(TargetState.get.bind(this))
+      .onSet(() => {
+        // A DISARM write is harmless and intentionally does not control Tapo.
+        this.targetChar.updateValue(
+          this.Characteristic.SecuritySystemTargetState.DISARM
+        );
+      });
 
     this.targetChar.updateValue(
       this.Characteristic.SecuritySystemTargetState.DISARM
