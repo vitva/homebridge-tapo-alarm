@@ -148,14 +148,8 @@ export default class KlapAPI extends API {
     const remoteSeed: Buffer = data.subarray(0, 16);
     const serverHash: Buffer = data.subarray(16);
 
-    this.log.debug(
-      '[KLAP] First handshake decoded successfully:\nRemote Seed:',
-      remoteSeed.toString('hex'),
-      '\nServer Hash:',
-      serverHash.toString('hex'),
-      '\nCookie:',
-      cookieValue
-    );
+    // Do not log KLAP session cookies, seeds, or authentication hashes.
+    this.log.debug('[KLAP] First handshake decoded successfully');
 
     const localHash = this.hashAuth(this.rawEmail, this.rawPassword);
     const localAuthHash = this.sha256(
@@ -231,11 +225,11 @@ export default class KlapAPI extends API {
         return;
       }
 
-      this.log.warn('[KLAP] Second handshake failed', handshake2Result.data);
+      this.log.warn('[KLAP] Second handshake failed');
     } catch (e: any) {
       this.log.error(
         '[KLAP] Second handshake failed:',
-        e.response.data || e.message
+        e.message
       );
     }
 
