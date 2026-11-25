@@ -89,7 +89,6 @@ export default class HubAccessory extends TapoAccessory {
         // Keep the required HomeKit target characteristic, but expose only
         // DISARM so HomeKit cannot arm the Tapo system.
         validValues: [this.Characteristic.SecuritySystemTargetState.DISARM],
-        perms: ['pr', 'pw', 'ev']
       })
       .onGet(TargetState.get.bind(this))
       .onSet(() => {
