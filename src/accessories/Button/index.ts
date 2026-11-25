@@ -24,6 +24,8 @@ export default class ButtonAccessory extends TapoAccessory {
   private checking = false;
   private stopped = false;
   private eventCursorInitialized = false;
+  private rotationRightChar?: CharInstance;
+  private rotationLeftChar?: CharInstance;
 
   public get UUID() {
     return this.accessory.UUID.toString();
@@ -73,6 +75,10 @@ export default class ButtonAccessory extends TapoAccessory {
         ]
       });
 
+    if (this.model.toUpperCase() === 'S200D') {
+      this.setupRotationServices(service);
+    }
+
     (
       service.getCharacteristic(
         this.platform.Characteristic.StatusLowBattery
@@ -82,6 +88,72 @@ export default class ButtonAccessory extends TapoAccessory {
 
     this.platform.api.on('shutdown', () => this.cleanup());
     void this.setup(characteristic);
+  }
+
+  private setupRotationServices(clickService: any) {
+    const labelService =
+      this.accessory.getService(this.platform.Service.ServiceLabel) ||
+      this.accessory.addService(this.platform.Service.ServiceLabel);
+
+    labelService
+      .getCharacteristic(
+        this.platform.Characteristic.ServiceLabelNamespace
+      )
+      .updateValue(
+        this.platform.Characteristic.ServiceLabelNamespace.ARABIC_NUMERALS
+      );
+
+    clickService
+      .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
+      .updateValue(1);
+    clickService.addLinkedService(labelService);
+
+    const createRotationService = (
+      subtype: string,
+      name: string,
+      labelIndex: number
+    ): CharInstance => {
+      const service =
+        this.accessory.getServiceById(
+          this.platform.Service.StatelessProgrammableSwitch,
+          subtype
+        ) ||
+        this.accessory.addService(
+          this.platform.Service.StatelessProgrammableSwitch,
+          name,
+          subtype
+        );
+
+      service
+        .getCharacteristic(
+          this.platform.Characteristic.ProgrammableSwitchEvent
+        )
+        .setProps({
+          validValues: [
+            this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+          ]
+        });
+
+      service
+        .getCharacteristic(this.platform.Characteristic.ServiceLabelIndex)
+        .updateValue(labelIndex);
+      service.addLinkedService(labelService);
+
+      return service.getCharacteristic(
+        this.platform.Characteristic.ProgrammableSwitchEvent
+      );
+    };
+
+    this.rotationRightChar = createRotationService(
+      's200d-rotation-right',
+      'S200D Поворот по часовой стрелке',
+      2
+    );
+    this.rotationLeftChar = createRotationService(
+      's200d-rotation-left',
+      'S200D Поворот против часовой стрелки',
+      3
+    );
   }
 
   private async setup(characteristic: CharInstance) {
@@ -102,8 +174,6 @@ export default class ButtonAccessory extends TapoAccessory {
       return;
     }
 
-    // The upstream implementation immediately recursed after every successful
-    // request. Use a bounded interval to avoid continuously polling the H100.
     this.interval = setInterval(() => {
       void this.checkStatus(characteristic);
     }, 1000);
@@ -117,7 +187,6 @@ export default class ButtonAccessory extends TapoAccessory {
     this.checking = true;
     try {
       const response = await this.hub.getChildLogs(this.deviceInfo.device_id);
-      // Ignore an in-flight response if Homebridge shut down while awaiting it.
       if (this.stopped) {
         return;
       }
@@ -130,16 +199,39 @@ export default class ButtonAccessory extends TapoAccessory {
       this.eventCursorInitialized = cursor.initialized;
       this.lastEventUpdate = cursor.lastTimestamp;
 
-      switch (cursor.event ?? '') {
-        case 'singleClick':
-          characteristic.updateValue(
+      switch ((cursor.event ?? '').toLowerCase()) {
+        case 'singleclick':
+          characteristic.sendEventNotification(
             this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
           );
           break;
-        case 'doubleClick':
-          characteristic.updateValue(
+        case 'doubleclick':
+          characteristic.sendEventNotification(
             this.platform.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS
           );
+          break;
+        case 'rotation':
+        case 'rotate':
+          if (cursor.rotationDirection === 'right' && this.rotationRightChar) {
+            this.rotationRightChar.sendEventNotification(
+              this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+            );
+            this.log.debug(
+              'S200D rotated clockwise:',
+              cursor.rotationDegrees ?? 'degrees unavailable'
+            );
+          } else if (
+            cursor.rotationDirection === 'left' &&
+            this.rotationLeftChar
+          ) {
+            this.rotationLeftChar.sendEventNotification(
+              this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+            );
+            this.log.debug(
+              'S200D rotated counter-clockwise:',
+              cursor.rotationDegrees ?? 'degrees unavailable'
+            );
+          }
           break;
       }
     } catch (error) {
