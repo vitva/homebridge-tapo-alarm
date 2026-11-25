@@ -9,6 +9,7 @@ import TapoAccessory from '../../@types/TapoAccessory';
 import Context from '../../@types/Context';
 import TPLink from '../../api/TPLink';
 import Platform from '../../platform';
+import { resolveAlarmState } from '../../utils/alarmState';
 
 import CurrentState from './characteristics/CurrentState';
 import TargetState from './characteristics/TargetState';
@@ -76,8 +77,8 @@ export default class HubAccessory extends TapoAccessory {
       .setCharacteristic(this.Characteristic.SerialNumber, this.mac);
 
     const service =
-      this.accessory.getService(this.platform.Service.SecuritySystem) ||
-      this.accessory.addService(this.platform.Service.SecuritySystem);
+      this.accessory.getService(this.Characteristic.SecuritySystem) ||
+      this.accessory.addService(this.Characteristic.SecuritySystem);
 
     this.currentChar = service
       .getCharacteristic(this.Characteristic.SecuritySystemCurrentState)
@@ -122,12 +123,14 @@ export default class HubAccessory extends TapoAccessory {
     try {
       const deviceInfo = await this.tpLink.getInfo();
       // An omitted alarm flag is unknown, not a confirmed alarm-clear event.
-      if (typeof deviceInfo.in_alarm !== 'boolean') {
+      const alarmActive = resolveAlarmState(
+        deviceInfo.in_alarm,
+        this.lastAlarmState
+      );
+      if (alarmActive === undefined) {
         this.log.debug('H100 alarm state is unavailable; keeping the last known state.');
         return;
       }
-
-      const alarmActive = deviceInfo.in_alarm;
 
       if (this.lastAlarmState !== alarmActive) {
         this.lastAlarmState = alarmActive;
