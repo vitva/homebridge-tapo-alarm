@@ -143,7 +143,9 @@
   async function refreshDevices() {
     byId('device-list').innerHTML = '<div class="text-muted">Обновление…</div>';
     try {
-      cachedDevices = await homebridge.getCachedAccessories();
+      cachedDevices = (await homebridge.getCachedAccessories()).filter((accessory) =>
+        accessory.plugin === 'homebridge-tapo-alarm-buttons' && accessory.platform === PLATFORM
+      );
       renderDevices();
     } catch (error) {
       byId('device-list').innerHTML = '<div class="alert alert-warning">' + escapeHtml(error.message || error) + '</div>';
