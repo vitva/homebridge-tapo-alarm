@@ -32,7 +32,7 @@ This project is derived from the archived [`homebridge-tp-link-tapo`](https://gi
 - S200 single-click and double-click events are exposed through one HomeKit Stateless Programmable Switch service.
 - On S200D, clockwise and counter-clockwise rotation are exposed as two additional Stateless Programmable Switch services, linked to the same accessory using HomeKit Service Labels.
 - These are event triggers, not stateful switches: they do not remain on or off after an event.
-- Each unseen event returned by the H100 log is emitted in chronological order. This prevents multiple events accumulated between polls from being collapsed into only the newest event.
+- The plugin requests the 20 most recent H100 trigger-log entries and emits every unseen event in chronological order, using the unique log ID as its cursor. This avoids collapsing multiple events between polls and distinguishes events that share a timestamp.
 - The event cursor is initialized from the current log so old events are not replayed after Homebridge starts. If the initial log request fails, the first successful response establishes the baseline.
 - Event delivery remains best-effort and depends on the H100 retaining its trigger log entries until the next successful poll. The plugin polls once per second; it cannot recover events the hub no longer returns.
 
