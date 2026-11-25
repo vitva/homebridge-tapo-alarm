@@ -1,14 +1,12 @@
 name: Publish to npm
 
 on:
-  push:
-    branches: [main]
   release:
     types: [published]
   workflow_dispatch:
     inputs:
       tag:
-        description: Branch or release tag to publish (use main for current version 1.0.1)
+        description: Branch or release tag to publish (use main for the current package version)
         required: true
         default: main
         type: string
