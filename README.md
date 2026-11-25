@@ -17,7 +17,8 @@ This project is derived from the archived [`homebridge-tp-link-tapo`](https://gi
 ## Project goals
 
 - Preserve Tapo H100 and physical S200 button support.
-- Report actual H100 alarm state to HomeKit without making HomeKit arm/disarm commands start or stop the siren.
+- Report actual H100 alarm state to HomeKit while keeping Tapo arming and siren control in the Tapo app.
+- Keep the required HomeKit target-state characteristic limited to `DISARM`; HomeKit writes do not control the H100.
 - Improve alarm-state polling and reliability while preserving upstream functionality.
 
 ### H100 alarm-state semantics
