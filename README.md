@@ -79,6 +79,12 @@ You can add multiple devices bulbs with a single platform.
 }
 ```
 
+## Device visibility
+
+The Homebridge settings page includes a device list with an individual visibility switch for each discovered Tapo device. Turn off **In HomeKit** to keep a device out of this plugin's HomeKit bridge while leaving H100 discovery and control available. Visibility is stored by the stable Homebridge accessory UUID and survives restarts and device rediscovery.
+
+The custom settings page also contains the Tapo account and H100 address fields; use its **Save settings** button to apply connection and visibility changes.
+
 ## Development
 
 Run the automated alarm-state and S200 event tests with:
