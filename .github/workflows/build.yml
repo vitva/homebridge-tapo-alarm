@@ -51,7 +51,7 @@ jobs:
 
       - name: Verify CommonJS and ESM package entry points
         run: |
-          npm pack --dry-run --json > pack.json
+          npm pack --dry-run --ignore-scripts --json > pack.json
           node -e "const p=require('./package.json'); const files=require('./pack.json')[0].files.map(f=>f.path); for (const f of [p.main, p.exports['.'].import, p.exports['.'].require]) if (!files.includes(f)) throw new Error('Package is missing entry point: '+f);"
           node -e "let registered; require('./dist/index.js').default({registerPlatform(name, platform) { registered={name, platform}; }}); if (registered?.name !== 'HomebridgeTapoAlarm' || typeof registered.platform !== 'function') throw new Error('CommonJS entry point did not register the platform');"
           node --input-type=module -e "import plugin from './dist-esm/index.js'; let registered; plugin({registerPlatform(name, platform) { registered={name, platform}; }}); if (registered?.name !== 'HomebridgeTapoAlarm' || typeof registered.platform !== 'function') throw new Error('ESM entry point did not register the platform');"
