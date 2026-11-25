@@ -30,9 +30,11 @@ jobs:
           registry-url: https://registry.npmjs.org
 
       - name: Verify release tag matches package version
+        env:
+          RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.release.tag_name }}
         run: |
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
-          test "v${PACKAGE_VERSION}" = "${GITHUB_REF_NAME}"
+          test "v${PACKAGE_VERSION}" = "${RELEASE_TAG}"
 
       - name: Install dependencies
         run: npm install
