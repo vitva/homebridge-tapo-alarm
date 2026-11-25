@@ -11,10 +11,10 @@ function resolveSpecifier(file, specifier) {
     return specifier + '.js';
   }
   if (fs.existsSync(path.join(target, 'index.js'))) {
-    return path.posix.join(specifier.replace(/\\\\/g, '/'), 'index.js');
+    return path.posix.join(specifier.replace(/\\/g, '/'), 'index.js');
   }
 
-  throw new Error(`Cannot resolve ESM import "${specifier}" from ${path.relative(root, file)}`);
+  throw new Error(\`Cannot resolve ESM import "\${specifier}" from \${path.relative(root, file)}\`);
 }
 
 function visit(directory) {
@@ -28,7 +28,7 @@ function visit(directory) {
 
     const source = fs.readFileSync(file, 'utf8');
     const fixed = source.replace(
-      /(\\bfrom\\s*|\\bimport\\s*\\()(['"])(\\.{1,2}\\/[^'"]+)\\2/g,
+      /(\bfrom\s*|\bimport\s*\()(['"])(\.{1,2}\/[^'"]+)\2/g,
       (match, prefix, quote, specifier) =>
         prefix + quote + resolveSpecifier(file, specifier) + quote
     );
