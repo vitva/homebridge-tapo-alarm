@@ -272,6 +272,7 @@ export default class Platform implements DynamicPlatformPlugin {
           model: deviceInfo.model,
           deviceType: deviceInfo.type
         };
+        this.api.updatePlatformAccessories([existingAccessory]);
 
         const tapoAccessory = this.createTapoAccessory(existingAccessory, deviceInfo);
 
@@ -396,6 +397,7 @@ export default class Platform implements DynamicPlatformPlugin {
           model: deviceInfo.model,
           deviceType: deviceInfo.type
         };
+        this.api.updatePlatformAccessories([existingAccessory]);
 
         const registeredAccessory = this.registerChild(
           existingAccessory,
