@@ -199,35 +199,42 @@ export default class ButtonAccessory extends TapoAccessory {
       this.eventCursorInitialized = cursor.initialized;
       this.lastEventUpdate = cursor.lastTimestamp;
 
-      if (cursor.rotationDirection === 'right' && this.rotationRightChar) {
-        this.rotationRightChar.sendEventNotification(
-          this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
-        );
-        this.log.debug(
-          'S200D rotated clockwise:',
-          cursor.rotationDegrees ?? 'degrees unavailable'
-        );
-      } else if (
-        cursor.rotationDirection === 'left' &&
-        this.rotationLeftChar
-      ) {
-        this.rotationLeftChar.sendEventNotification(
-          this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
-        );
-        this.log.debug(
-          'S200D rotated counter-clockwise:',
-          cursor.rotationDegrees ?? 'degrees unavailable'
-        );
-      } else {
-        switch ((cursor.event ?? '').toLowerCase()) {
+      // Emit every unseen event in chronological order. A single poll can
+      // contain multiple clicks/rotations, and none should be collapsed.
+      for (const event of cursor.events) {
+        if (this.stopped) {
+          break;
+        }
+
+        if (event.rotationDirection === 'right' && this.rotationRightChar) {
+          this.rotationRightChar.sendEventNotification(
+            this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+          );
+          this.log.debug(
+            'S200D rotated clockwise:',
+            event.rotationDegrees ?? 'degrees unavailable'
+          );
+          continue;
+        }
+
+        if (event.rotationDirection === 'left' && this.rotationLeftChar) {
+          this.rotationLeftChar.sendEventNotification(
+            this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
+          );
+          this.log.debug(
+            'S200D rotated counter-clockwise:',
+            event.rotationDegrees ?? 'degrees unavailable'
+          );
+          continue;
+        }
+
+        switch ((event.event ?? '').toLowerCase().replace(/[_\\s-]/g, '')) {
           case 'singleclick':
-          case 'single_click':
             characteristic.sendEventNotification(
               this.platform.Characteristic.ProgrammableSwitchEvent.SINGLE_PRESS
             );
             break;
           case 'doubleclick':
-          case 'double_click':
             characteristic.sendEventNotification(
               this.platform.Characteristic.ProgrammableSwitchEvent.DOUBLE_PRESS
             );
