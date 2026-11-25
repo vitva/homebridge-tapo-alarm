@@ -26,6 +26,8 @@ This project is derived from the archived [`homebridge-tp-link-tapo`](https://gi
 - The plugin reports the hub's live `in_alarm` flag. It does not infer an alarm from arming mode or from ringtone playback alone.
 - `in_alarm` and `in_alarm_source` describe an alarm that is active now; the H100 does not expose a local history of past alarm events.
 - If the hub omits `in_alarm` in a response, the plugin keeps the last known state rather than treating missing telemetry as an alarm-clear event.
+- The current implementation samples `in_alarm` locally once per second; it does not use a push-event subscription. This is best-effort detection, so an alarm state that begins and clears between polls can be missed.
+- The `in_alarm` flag is not guaranteed to stay true for the full ringtone playback time when the alarm duration is `Once`; do not treat audio playback duration as the alarm-state duration.
 
 This is an independent derivative project and is not affiliated with TP-Link.
 
