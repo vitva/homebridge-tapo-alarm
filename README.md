@@ -6,8 +6,7 @@
 
 Independent Tapo integration project for [Homebridge](https://github.com/homebridge/homebridge).
 
-This is a fork of the archived plugin [`homebridge-tp-link-tapo`](https://github.com/RaresAil/homebridge-tp-link-tapo) originally authored by 
-[Nicolae Rares Ailincai](https://github.com/RaresAil).
+This project is derived from the archived [`homebridge-tp-link-tapo`](https://github.com/RaresAil/homebridge-tp-link-tapo) codebase, originally created by [Nicolae Rares Ailincai](https://github.com/RaresAil) and later maintained by [Kevin Hillinger](https://github.com/kevinhillinger).
 
 
 |  |  |
@@ -20,6 +19,12 @@ This is a fork of the archived plugin [`homebridge-tp-link-tapo`](https://github
 - Preserve Tapo H100 and physical S200 button support.
 - Report actual H100 alarm state to HomeKit without making HomeKit arm/disarm commands start or stop the siren.
 - Improve alarm-state polling and reliability while preserving upstream functionality.
+
+### H100 alarm-state semantics
+
+- The plugin reports the hub's live `in_alarm` flag. It does not infer an alarm from arming mode or from ringtone playback alone.
+- `in_alarm` and `in_alarm_source` describe an alarm that is active now; the H100 does not expose a local history of past alarm events.
+- If the hub omits `in_alarm` in a response, the plugin keeps the last known state rather than treating missing telemetry as an alarm-clear event.
 
 This is an independent derivative project and is not affiliated with TP-Link.
 
