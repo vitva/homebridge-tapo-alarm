@@ -50,6 +50,34 @@
             "type"
           ]
         }
+      },
+      "hiddenDevices": {
+        "type": "array",
+        "title": "Скрытые устройства",
+        "description": "Список устройств, которые не нужно публиковать в HomeKit. Управляется через пользовательский интерфейс плагина.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "uuid": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            },
+            "model": {
+              "type": "string"
+            },
+            "deviceId": {
+              "type": "string"
+            },
+            "deviceType": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "uuid"
+          ]
+        }
       }
     },
     "required": [
