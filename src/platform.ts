@@ -81,7 +81,7 @@ export default class Platform implements DynamicPlatformPlugin {
    * REQUIRED - Homebridge will call the "configureAccessory" method once for every cached
    * accessory restored
    */
-  configureAccessory(accessory: PlatformAccessory) {
+  configureAccessory(accessory: PlatformAccessory<unknown>) {
     this.log.info('Loading accessory from cache:', accessory.displayName);
     this.accessories.push(accessory as PlatformAccessory<Context | HubContext>);
   }
