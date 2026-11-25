@@ -71,7 +71,14 @@ export default class LegacyAPI extends API {
       }
     );
 
-    this.log.debug('[Send Normal Request]', JSON.stringify(response.data));
+    const logData =
+      method === 'handshake' && response.data?.result?.key
+        ? {
+            ...response.data,
+            result: { ...response.data.result, key: '[REDACTED]' }
+          }
+        : response.data;
+    this.log.debug('[Send Normal Request]', JSON.stringify(logData));
     return response;
   }
 
@@ -172,7 +179,7 @@ export default class LegacyAPI extends API {
     });
 
     const key = response?.data?.result?.key;
-    this.log.debug('[Handshake]', JSON.stringify(response.data));
+    this.log.debug('[Handshake] Device handshake response received');
 
     if (!key) {
       throw new Error('Failed to handshake with device');
